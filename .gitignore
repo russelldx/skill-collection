@@ -1,0 +1,19 @@
+# 交接文档（会话进度，非仓库内容）
+.handoff/
+
+# 测试环境（本地验证用，不发布）
+test-env/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 编辑器
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
