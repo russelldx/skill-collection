@@ -9,11 +9,7 @@
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["-y", "@anthropic-ai/chrome-devtools-mcp@latest"]
-    },
-    "claude-mem": {
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/claude-mem@latest"]
+      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }

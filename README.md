@@ -1,156 +1,94 @@
 # Skill Collection — AI Agent 技能合集
 
-> 像游戏 mod 合集一样，一键获取经过验证的 AI agent 技能包。
-> 小白全装，老手按需取用。
+按任务选择技能，而不是全量安装。Skill 提供工作流程，MCP/CLI 提供工具；两者不能互相替代。
 
-## 这是什么
-
-本仓库收集了 **63 个 AI agent skill**，覆盖开发流程、文档生成、写作辅助、联网操作、效率工具等多个领域。所有 skill 均经过实际使用验证，可按需安装。
-
-**适用平台**：任何支持 SKILL.md 协议的 AI 编码助手。
+本仓库保留原有 **63 个 skill 的内容**，整理为 **55 个活动入口、4 个合并参考、4 个暂停入口**。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过。
 
 ## 快速开始
 
-### 推荐方式：让你的 Agent 来决定
+将本仓库地址或 `README.md` + [INDEX.md](./INDEX.md) 交给你的 agent，让它：
 
-把本仓库地址（或 `README.md` + `INDEX.md` 的内容）发给你的 AI 编码助手，让它根据你当前的环境和需求，自动判断该安装哪些 skill、怎么安装。
+1. 根据任务从 `skills/` 选择需要的技能，不扫描归档作为可安装技能。
+2. 检查目标环境的运行时、工具、子代理能力及已安装版本。
+3. 说明待安装目录和依赖，得到授权后安装；目标目录已存在时先比较，不覆盖。
+4. 单独确认 MCP、凭据、全局依赖和 hooks 的配置，不能把安装技能视为授权这些操作。
 
-Agent 会做的事：
-1. 读取 `INDEX.md` 中的 63 个 skill 列表和兼容性标注
-2. 检测你的环境（有哪些运行时、MCP 配置、是否支持 hooks 等）
-3. 推荐适合你环境的 skill 组合
-4. 将选中的 skill 复制到正确的 skill 目录
-
-> 你也可以直接把 `INDEX.md` 的全文贴给 agent，附上"帮我挑选适合我环境的 skill 并安装"即可。
-
-### 手动安装（备选）
-
-如果你更习惯自己操作：
+手动安装示例（Git Bash / POSIX shell；先确认目标技能不存在）：
 
 ```bash
-# 1. 克隆仓库
 git clone <仓库地址>
 cd skill-collection
-
-# 2. 全量安装
-cp -r skills/* <你的agent skill目录>/
-
-# 3. 或按需挑选（以文档生成为例）
-cp -r skills/anthropic-docx <你的agent skill目录>/
-cp -r skills/anthropic-pdf <你的agent skill目录>/
-cp -r skills/anthropic-pptx <你的agent skill目录>/
+# 按需选择一个目录；不要将尖括号占位符直接执行。
+cp -r skills/anthropic-pdf <你的agent技能目录>/
 ```
 
-> `<你的agent skill目录>` 取决于你使用的 agent，通常是 `~/.claude/skills/`、`~/.cursor/skills/` 等。
+目标目录由宿主决定，例如项目级 `.qoder/skills/` 或用户级 `~/.qoder/skills/`、`~/.claude/skills/`。不要递归复制整个仓库，也不要执行 `skills/*` 全量安装。
+
+## 活动入口与归档
+
+| 状态 | 数量 | 位置 / 含义 |
+|------|------|-------------|
+| 活动 | 55 | `skills/<name>/SKILL.md`，按需安装；个别执行分支仍有明确限制 |
+| 已合并 | 4 | 原内容保留为主技能的 `references/**/REFERENCE.md`，不再单独自动触发 |
+| 暂停 | 4 | `archive/disabled/<name>/REFERENCE.md`，仅供审阅，不安装、不运行 hooks 或启动循环 |
+
+合并关系：
+
+- `diagnosing-bugs` → `superpowers-systematic-debugging` 的诊断参考。
+- `claude-mem-learn-codebase` → `claude-mem-smart-explore` 的显式、有范围和预算的全文阅读模式。
+- `pua-mama`、`pua-yes` → 已归档 PUA 核心的文风参考，随核心暂停。
+
+暂停项：`superpowers-using-superpowers`、`superpowers-finishing-a-development-branch`、`pua-pua`、`pua-pua-loop`。归档保留来源和代码，不代表缺陷已全部修复或已获重新启用授权。
+
+## 按场景选择
+
+| 场景 | 建议入口 |
+|------|----------|
+| 开发与调试 | `superpowers-systematic-debugging`、`superpowers-test-driven-development`、`superpowers-verification-before-completion` |
+| 已有复杂需求 | `superpowers-writing-plans` → `superpowers-executing-plans`；已有明确批准的方案不重复审批 |
+| 代码审查 | `code-review`；确有多维审查需求再选 `diegosouzapw-deep-review` |
+| 办公文档 | `anthropic-docx/pdf/pptx/xlsx`；旧版 `.xls` 选 `xls-poi`，删列链路暂不启用 |
+| 公开网页搜索、抓取 | `firecrawl` 及具体子技能，使用前检查 CLI 或 MCP 是否可用 |
+| 本机浏览器登录态、书签/历史、站点经验 | `web-access`，不依赖 Chrome DevTools MCP |
+| 课程作业 | `course-assignment`；平台上传、填写答案、提交均须明确授权 |
+| 需求 | `gen-prd`（访谈）→ `decompose-prd`（拆解）；`prd-reviewer` 的专用量表需先确认适用 |
+| 记忆与交接 | `claude-mem-mem-search`、`claude-mem-smart-explore`、`claude-mem-knowledge-agent`；需要交接文件时选 `session-handoff` |
 
 ## 前置依赖
 
-部分 skill 需要额外依赖才能正常工作：
+| 能力 | 依赖和边界 |
+|------|------------|
+| 文档脚本 | 依具体路线需要 Python、Node.js、相应包；PDF/PPT 渲染、Office 重算可能还需外部程序 |
+| POI 表格处理 | Java + Apache POI；显式配置本机 classpath，不能照搬个人磁盘路径 |
+| web-access | Node.js 22+、可授权连接的 Chromium 系浏览器；历史检索另需 sqlite3 CLI，书签读取不需要 sqlite3 |
+| Firecrawl 10 个技能 | 主要使用 Firecrawl CLI；MCP 为可选工具接口，CLI 安装/登录成功不证明 MCP 正常 |
+| Chrome DevTools MCP | 可选浏览器工具；默认独立 profile 不自动继承日常登录态，连接已有浏览器须配置并授权 |
+| claude-mem 3 个活动技能 | 官方安装及所需 MCP 工具；不同版本的 AST/知识库工具可用性需要逐项检查 |
+| yida-login | OpenYida CLI；Cookie 是敏感信息，不能提交到仓库 |
+| hooks / 子代理 | 宿主支持和权限需分别确认；安装技能不会自动授权注册 hooks |
 
-| 依赖 | 涉及 skill | 安装方式 |
-|------|-----------|---------|
-| **Node.js** | anthropic-docx、anthropic-xlsx、web-access、course-assignment 等含 scripts/ 的 skill | [nodejs.org](https://nodejs.org) |
-| **Python 3** | anthropic-slack-gif-creator | `pip install -r requirements.txt` |
-| **Java 8 + POI** | xls-poi | skill 内含 `scripts/poi_env.sh` |
-| **Firecrawl MCP** | firecrawl 全系列 | 见下方 MCP 配置说明 |
-| **Chrome DevTools MCP** | web-access、course-assignment | 见下方 MCP 配置说明 |
-| **claude-mem MCP** | claude-mem 全系列 | 见下方 MCP 配置说明 |
-| **OpenYida CLI** | yida-login | 需安装 openyida 命令行工具 |
+根目录 [.mcp.json](./.mcp.json) 提供 Firecrawl 和 Chrome DevTools 的项目配置示例。文件被客户端识别不等于服务安装、授权、启动或实际操作成功；其他客户端的配置格式和环境变量展开方式需按其文档适配。
 
-> 不含 scripts/、不需要 MCP 的 skill（大部分纯 SKILL.md）可直接使用，无额外依赖。
+详细配置与分层验证见 [MCP-SETUP.md](./MCP-SETUP.md)。本仓库不含可直接套用的个人 claude-mem 路径或任何 API Key。
 
-### MCP 配置说明
+## 验证与兼容性
 
-本仓库已在根目录提供 **`.mcp.json`**，Claude Code 打开仓库时会自动识别所需的 MCP server。
+```bash
+python validate-skills.py
+# 或在 Git Bash / POSIX shell 中运行
+bash validate-skills.sh
+```
 
-详细安装步骤、API Key 获取方式、各 agent 的配置方法见 **[MCP-SETUP.md](./MCP-SETUP.md)**。
+验证器检查活动入口、索引覆盖、配置及实际本地 Markdown 链接，不执行登录、上传、hooks 或真实文档修改。具体回归与未验证能力见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
-三个 MCP server 概要：
+不同 agent 对工具名、MCP、hooks、子代理和 shell 的支持不同。纯文本指令也可能引用宿主特有能力，不能仅凭 `SKILL.md` 存在承诺跨平台完全兼容。
 
-| MCP Server | 用途 | 需要 API Key | 涉及 skill 数 |
-|------------|------|:---:|:---:|
-| **Firecrawl** | 网页搜索/抓取/爬取 | 是（[firecrawl.dev](https://firecrawl.dev) 免费注册） | 11 个 |
-| **Chrome DevTools** | 浏览器自动化控制 | 否 | 2 个 |
-| **claude-mem** | 跨会话持久记忆 | 否 | 4 个 |
+## 额外内容与来源
 
-> **按需安装**：不需要全部配置。约 40 个纯 SKILL.md skill 无需任何 MCP。详见 MCP-SETUP.md 中的按需安装表。
+`daibi-template/` 是个人文风技能制作指南，不计入上述技能数量。
 
-## 合集内容
-
-详细列表见 [INDEX.md](./INDEX.md)，按功能分为 8 大类：
-
-| 分类 | 数量 | 说明 |
-|------|------|------|
-| 文档生成 | 6 | Word、PDF、PPT、Excel 等文件处理 |
-| 开发流程 | 16 | 从构思到发布的完整开发方法论 |
-| 代码审查 | 3 | 代码质量、深度审查 |
-| 需求管理 | 4 | PRD 生成、分解、评审 |
-| 联网操作 | 14 | 网页抓取、搜索、浏览器交互 |
-| 写作辅助 | 2 | 内容研究、会话交接 |
-| 效率工具 | 12 | 调试、诊断、知识管理 |
-| 驱动风格 | 4 | PUA 系列，调节 agent 工作风格 |
-
-## 额外内容
-
-### daibi 模板（个人文风 skill 制作指南）
-
-`daibi-template/` 目录包含制作个人文风 skill 的完整指南和模板：
-
-- `GUIDE.md` — 从零制作个人文风 skill 的步骤
-- `SKILL-TEMPLATE.md` — 可填写的模板文件
-
-这不是一个现成的 skill，而是教你**如何制作一个模仿你自己文风的 skill**。
-
-## 兼容性说明
-
-| 标签 | 含义 |
-|------|------|
-| `纯SKILL.md` | 任何支持 SKILL.md 的 agent 可直接使用 |
-| `需scripts` | 含可执行脚本，需要对应运行时（Node/Python/Java） |
-| `需hooks` | 含 hook 配置，需要 agent 支持 hook 系统 |
-| `需agents` | 使用 sub-agent 系统，需要 agent 支持子代理调度 |
-| `需MCP` | 需要配置对应的 MCP server |
-
-各 skill 的具体兼容性标注见 [INDEX.md](./INDEX.md)。
-
-### 跨 Agent 兼容矩阵
-
-| Agent | 能力覆盖 | 完全兼容 | 部分兼容 | 降级可用 |
-|-------|---------|---------|---------|---------|
-| **Claude Code** | SKILL.md + scripts + hooks + sub-agents + MCP | **63 个** | — | — |
-| **Cursor** | SKILL.md + scripts + MCP | ~45 个纯 SKILL.md | ~15 个需脚本/MCP 配置 | ~3 个 hooks skill 核心功能可用 |
-| **Codex / Gemini CLI** | SKILL.md + scripts（shell 受限） | ~45 个纯 SKILL.md | ~12 个需脚本/MCP | ~6 个需 hooks/shell 降级 |
-| **通用 SKILL.md agent** | 仅 SKILL.md 指令 | ~40 个纯 SKILL.md | — | ~23 个需运行时/MCP/hooks |
-
-> **标签说明**：`✓` 完全支持 · `◐` 部分支持（核心功能可用，增强功能不可用） · `✗` 不支持
->
-> **Hooks 降级**：本合集含 hooks 的 3 个 skill（session-handoff、pua-pua、superpowers-using-superpowers）均将 hooks 作为可选增强，核心指令写在 SKILL.md 中，无 hooks 的 agent 仍可正常使用核心功能。详见 [INDEX.md](./INDEX.md) 中各 skill 的降级方案说明。
-
-## 来源归属
-
-| 来源 | 数量 | 说明 |
-|------|------|------|
-| Anthropic 官方 | 15 | anthropic-* 系列 |
-| 市场/社区 | 27 | 来自 marketplace、GitHub 等 |
-| superpowers 系列 | 13 | 社区开发方法论合集 |
-| PUA 系列 | 4 | [pua-skill](https://pua-skill.pages.dev) 项目 |
-| 自创 | 4 | session-handoff、course-assignment、xls-poi、daibi 模板 |
-
-## 注意事项
-
-1. **不要安装你已有的同名 skill** — 会覆盖现有版本
-2. **含 scripts/ 的 skill** — 首次使用前检查脚本依赖
-3. **含 hooks/ 的 skill** — 需要通过 skill 提供的安装脚本部署 hook
-4. **MCP 相关 skill** — 需先在 agent 配置中添加对应 MCP server
-5. **PUA 系列** — 会显著改变 agent 的交互风格，建议先了解再安装
-
-## License
-
-各 skill 保留原有 license。anthropic-* 系列见各自 LICENSE.txt；pua-* 系列为 MIT；其他无明确声明的遵循仓库默认条款。
+各目录保留原有来源与许可证文件；本地修改可能与上游不同。来源包括 Anthropic、Firecrawl、Superpowers、claude-mem、PUA、社区和自创技能。没有明确许可证的内容，不应推定获得任意再分发授权。
 
 ## 贡献
 
-欢迎提交 PR 添加你的 skill！要求：
-- 必须有 SKILL.md 主文件
-- 必须在 INDEX.md 中添加对应条目
-- 如有特殊依赖，需在 README 前置依赖表中说明
+新增活动入口须有 `SKILL.md`、更新 `INDEX.md` 并通过结构验证。涉及可执行脚本时补充隔离回归；涉及上传、凭据、全局配置或 hooks 时明确授权边界。不要把“静态检查通过”写成“所有功能可用”。
