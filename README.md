@@ -61,21 +61,19 @@ cp -r skills/anthropic-pptx <你的agent skill目录>/
 
 ### MCP 配置说明
 
-MCP server 在你的 agent 配置文件中添加（通常是 `~/.claude/settings.json`、`~/.cursor/settings.json` 等，具体取决于你使用的 agent）。
+本仓库已在根目录提供 **`.mcp.json`**，Claude Code 打开仓库时会自动识别所需的 MCP server。
 
-**Firecrawl MCP**（网页搜索/抓取）
-- 需要 Firecrawl API Key：[firecrawl.dev](https://firecrawl.dev) 注册获取
-- 配置方式参考你的 agent 文档中 MCP server 添加方法，填入 Firecrawl 提供的 MCP endpoint 和 API key
+详细安装步骤、API Key 获取方式、各 agent 的配置方法见 **[MCP-SETUP.md](./MCP-SETUP.md)**。
 
-**Chrome DevTools MCP**（浏览器控制）
-- 用于需要真实浏览器环境的操作（登录、社交媒体、动态页面等）
-- 配置方式参考你的 agent 文档中 MCP server 添加方法
+三个 MCP server 概要：
 
-**claude-mem MCP**（跨会话记忆）
-- 提供持久化的跨会话记忆存储
-- 配置方式参考你的 agent 文档中 MCP server 添加方法
+| MCP Server | 用途 | 需要 API Key | 涉及 skill 数 |
+|------------|------|:---:|:---:|
+| **Firecrawl** | 网页搜索/抓取/爬取 | 是（[firecrawl.dev](https://firecrawl.dev) 免费注册） | 11 个 |
+| **Chrome DevTools** | 浏览器自动化控制 | 否 | 2 个 |
+| **claude-mem** | 跨会话持久记忆 | 否 | 4 个 |
 
-> **提示**：你也可以直接把本仓库的 INDEX.md 发给你的 agent，让它帮你检测和配置所需的 MCP server。
+> **按需安装**：不需要全部配置。约 40 个纯 SKILL.md skill 无需任何 MCP。详见 MCP-SETUP.md 中的按需安装表。
 
 ## 合集内容
 
