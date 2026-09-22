@@ -82,14 +82,14 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 
 | 项目 | 状态 |
 |------|------|
-| 项目 `.mcp.json` 示例 | 未证明在目标宿主被发现/启动；firecrawl 缺环境变量、chrome-devtools 被检查器按策略拒绝 npx（非宿主启动缺陷） |
+| 项目 `.mcp.json` 示例 | 未证明在目标宿主被发现/启动；环境变量就绪后 firecrawl 预检由 `missing_environment` 变为检查器策略拒绝 npx，chrome-devtools 同样被策略拒绝 |
 | 已安装 Chrome MCP 1.9.0 | 经显式 Node 启动覆盖，协议初始化、29 个工具、`list_pages` 通过；未执行工具调用、未下载包 |
 | 宿主 Chrome DevTools 工具 | 自建测试页创建/读取/截图/关闭通过；未操作用户原有页面 |
 | Firecrawl CLI 1.16.0 | 认证、额度、一次官方公开文档抓取通过（可能消耗额度） |
-| Firecrawl MCP | 额度调用 HTTP 401，未执行抓取；CLI 成功不能替代 MCP 认证 |
+| Firecrawl MCP | 2026-09-22 用户提供 Key 并设置用户级 `FIRECRAWL_API_KEY` 后，隔离安装 firecrawl-mcp 3.25.2 实测通过：29 工具、`firecrawl_credit_usage` 返回 999/1000（isError=false）；原 401 解除，客户端重启后对其生效 |
 | claude-mem | 检索与语料库列表 worker fetch failed；AST 小样本未解析；未写入、未重启 worker |
 
-`.mcp.json` 保持为示例文件（含 `${FIRECRAWL_API_KEY}` 展开写法）；未为本轮验收修改任何全局 MCP 配置、凭据或登录状态。
+`.mcp.json` 保持为示例文件（含 `${FIRECRAWL_API_KEY}` 展开写法）；本轮唯一的本机配置变更是按用户提供的 Key 设置用户级环境变量 `FIRECRAWL_API_KEY`（未写入任何配置文件、未改客户端 MCP 条目或登录状态），移除方法见 MCP-SETUP.md 实测结果 一节。
 
 ## 真实环境中仍需验证
 

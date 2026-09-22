@@ -151,13 +151,13 @@ python -B -W error -m unittest discover -s tests -p test_mcp_smoke.py -v
 | 当前 Chrome DevTools MCP | 列页、自建空白页写入测试文字、读取、截图、关闭均成功 | 原有页面未操作；不等于 web-access Proxy 实测 |
 | 已安装 Chrome MCP 1.9.0 + Python SDK | 显式 Node 入口 initialize、29 个工具 schema、必需 `list_pages`、清理通过 | 关闭此次进程的使用统计与 CrUX；未运行 npx，未验证原样配置发现 |
 | Firecrawl CLI 1.16.0 | 认证、额度检查、一次官方 MCP 文档抓取成功，退出码 0 | 消耗额度的单页操作；不代表批量抓取或交互已验收 |
-| 当前 Firecrawl MCP | 额度查询返回 HTTP 401 | 未继续付费抓取，需用户核对该服务认证；未转移 CLI 凭据 |
-| 仓库 Firecrawl 示例 | `missing_environment` | 当前进程无 API Key，未改本机配置 |
+| 当前 Firecrawl MCP | 原为额度调用 HTTP 401；2026-09-22 用户提供 Key 并设置用户级 `FIRECRAWL_API_KEY` 后，隔离安装 firecrawl-mcp 3.25.2 实测：initialize 成功、29 个工具、`firecrawl_credit_usage` 返回 999/1000（isError=false） | 客户端需重启才能继承新环境变量；未做付费抓取，scrape/search/interact 各自功能仍未逐项验收 |
+| 仓库 Firecrawl 示例 | 环境变量就绪后预检从 `missing_environment` 变为 `unsafe_launcher`（检查器策略拒绝 npx，非宿主启动缺陷）；移除变量后复现 `missing_environment` | 仅证明示例中的 `${FIRECRAWL_API_KEY}` 展开可解析，未证明本客户端已加载该示例 |
 | 当前 claude-mem | 哨兵 search / list_corpora 均 `fetch failed`；小型 Python 源文件 outline 无法解析 | 工具可见不等于 worker/AST 可用；未创建语料库、prime 或写入记忆 |
 
-阻塞根因（2026-09-22 只读诊断，未改任何配置）：
+阻塞根因与处置（2026-09-22 只读诊断 + 用户提供 Key 后修复）：
 
-- Firecrawl MCP 401：用户级 `~/.qoder/settings.json` 中该条目为 `npx -y firecrawl-mcp@latest`，未配置环境变量（env 键为空），且当前用户环境不存在 `FIRECRAWL_API_KEY`，服务端因此以无凭据状态调用。修复需用户提供 Key 后二选一：把 `FIRECRAWL_API_KEY` 设为用户环境变量（如 `[Environment]::SetEnvironmentVariable('FIRECRAWL_API_KEY','<key>','User')`），或在该服务配置中声明 `${FIRECRAWL_API_KEY}` 展开并确保变量存在；两者均需重启客户端生效。本轮未复制 CLI 凭据、未改全局配置。
+- Firecrawl MCP 401 根因：用户级 `~/.qoder/settings.json` 中该条目为 `npx -y firecrawl-mcp@latest`，未配置环境变量（env 键为空），且用户环境不存在 `FIRECRAWL_API_KEY`，服务端以无凭据状态调用。**已修复**：将 Key 写入用户级环境变量（不进入任何配置文件），隔离安装包并实测认证通过（见上表）；未复制 CLI 凭据、未改客户端配置。移除方法：`[Environment]::SetEnvironmentVariable('FIRECRAWL_API_KEY',$null,'User')`。
 - claude-mem：`installed_plugins.json` 中查无 claude-mem 条目（顶层仅有 `plugins` 键），worker 不通的修复须按其实际安装方式处理，不在本仓库配置范围。
 
 ## 官方资料
