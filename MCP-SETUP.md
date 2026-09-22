@@ -151,14 +151,18 @@ python -B -W error -m unittest discover -s tests -p test_mcp_smoke.py -v
 | 当前 Chrome DevTools MCP | 列页、自建空白页写入测试文字、读取、截图、关闭均成功 | 原有页面未操作；不等于 web-access Proxy 实测 |
 | 已安装 Chrome MCP 1.9.0 + Python SDK | 显式 Node 入口 initialize、29 个工具 schema、必需 `list_pages`、清理通过 | 关闭此次进程的使用统计与 CrUX；未运行 npx，未验证原样配置发现 |
 | Firecrawl CLI 1.16.0 | 认证、额度检查、一次官方 MCP 文档抓取成功，退出码 0 | 消耗额度的单页操作；不代表批量抓取或交互已验收 |
-| 当前 Firecrawl MCP | 原为额度调用 HTTP 401；2026-09-22 用户提供 Key 并设置用户级 `FIRECRAWL_API_KEY` 后，隔离安装 firecrawl-mcp 3.25.2 实测：initialize 成功、29 个工具、`firecrawl_credit_usage` 返回 999/1000（isError=false） | 客户端需重启才能继承新环境变量；未做付费抓取，scrape/search/interact 各自功能仍未逐项验收 |
+| 当前 Firecrawl MCP | 原为额度调用 HTTP 401；2026-09-22 用户提供 Key 并设置用户级 `FIRECRAWL_API_KEY` 后，隔离安装 firecrawl-mcp 3.25.2 实测：initialize 成功、29 个工具、`firecrawl_credit_usage` 返回 999/1000（isError=false） | 客户端需重启才能继承新环境变量（2026-09-22 晚复核：用户级变量已设置、当前进程树仍未继承，401 依旧）；未做付费抓取，scrape/search/interact 各自功能仍未逐项验收 |
 | 仓库 Firecrawl 示例 | 环境变量就绪后预检从 `missing_environment` 变为 `unsafe_launcher`（检查器策略拒绝 npx，非宿主启动缺陷）；移除变量后复现 `missing_environment` | 仅证明示例中的 `${FIRECRAWL_API_KEY}` 展开可解析，未证明本客户端已加载该示例 |
-| 当前 claude-mem | 哨兵 search / list_corpora 均 `fetch failed`；小型 Python 源文件 outline 无法解析 | 工具可见不等于 worker/AST 可用；未创建语料库、prime 或写入记忆 |
+| 当前 claude-mem（2026-09-22 晚修复后） | worker 健康端点正常且自动启动链路恢复（停止 worker 后由全新 MCP 进程自动拉起，日志 `Worker started successfully`）；`list_corpora` 正常返回；`smart_outline`（含非 ASCII 路径）、`smart_search`（扫描 469 文件/6416 符号）、`smart_unfold` 均返回正确结果 | 修复前启动的 MCP 进程在进程内缓存了失败解析，AST 工具需重启客户端或新会话后生效；记忆库为空，检索无结果属预期 |
 
-阻塞根因与处置（2026-09-22 只读诊断 + 用户提供 Key 后修复）：
+阻塞根因与处置（2026-09-22 诊断与修复，含晚间 claude-mem 修复）：
 
 - Firecrawl MCP 401 根因：用户级 `~/.qoder/settings.json` 中该条目为 `npx -y firecrawl-mcp@latest`，未配置环境变量（env 键为空），且用户环境不存在 `FIRECRAWL_API_KEY`，服务端以无凭据状态调用。**已修复**：将 Key 写入用户级环境变量（不进入任何配置文件），隔离安装包并实测认证通过（见上表）；未复制 CLI 凭据、未改客户端配置。移除方法：`[Environment]::SetEnvironmentVariable('FIRECRAWL_API_KEY',$null,'User')`。
-- claude-mem：`installed_plugins.json` 中查无 claude-mem 条目（顶层仅有 `plugins` 键），worker 不通的修复须按其实际安装方式处理，不在本仓库配置范围。
+- claude-mem worker/AST 不可用（2026-09-22 晚定位并修复，三项根因叠加）：
+  1. **插件缓存副本缺 `node_modules`**（不完整安装）→ worker 启动即崩（`Cannot find module 'zod/v3'`），MCP 侧的自动拉起因此每次失败。用同版本 marketplace 副本的依赖目录补齐（两侧 `package.json`、`bun.lock`、`scripts/` 逐字节一致，仅缺依赖）。
+  2. **`tree-sitter-cli` 安装脚本下载中断**，留下 0 字节 `tree-sitter.exe` → AST 工具全部“Could not parse”。重跑包内 `install.js` 重新下载平台二进制（v0.26.9）修复。
+  3. **Windows 命名缺口**：bundle 定位 CLI 时查找无扩展名的 `tree-sitter`（POSIX 布局），Windows 包只提供 `tree-sitter.exe`。在包目录内以硬链接补齐该名称。
+  验证：自动启动链路实测恢复（停止 worker → 全新 MCP 进程自动拉起）；worker 类工具（检索、语料库列表）经 HTTP 调用，修复后立即生效；AST 工具在全新进程逐项通过。限制：修复前已启动的 MCP 进程在进程内缓存失败结果，AST 工具需重启客户端或新会话；空记忆库下检索无结果属预期（数据由宿主会话写入）。
 
 ## 官方资料
 
