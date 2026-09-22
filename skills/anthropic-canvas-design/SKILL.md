@@ -4,11 +4,11 @@ description: Create beautiful visual art in .png and .pdf documents using design
 license: Complete terms in LICENSE.txt
 ---
 
-These are instructions for creating design philosophies - aesthetic movements that are then EXPRESSED VISUALLY. Output only .md files, .pdf files, and .png files.
+These instructions use design philosophies to guide visual art. The user's brief, branding, required content and output constraints take precedence over the aesthetic defaults below. Deliver the requested PDF or PNG; a separate philosophy Markdown file is optional and only created when requested.
 
 Complete this in two steps:
-1. Design Philosophy Creation (.md file)
-2. Express by creating it on a canvas (.pdf file or .png file)
+1. Develop a design philosophy in planning or briefly in the response
+2. Express it on a canvas (.pdf file or .png file)
 
 First, undertake this task:
 
@@ -20,7 +20,7 @@ To begin, create a VISUAL PHILOSOPHY (not layouts or templates) that will be int
 - Minimal text as visual accent
 
 ### THE CRITICAL UNDERSTANDING
-- What is received: Some subtle input or instructions by the user that should be taken into account, but used as a foundation; it should not constrain creative freedom.
+- What is received: The user's brief and constraints, which guide and bound creative choices.
 - What is created: A design philosophy/aesthetic movement.
 - What happens next: Then, the same version receives the philosophy and EXPRESSES IT VISUALLY - creating artifacts that are 90% visual design, 10% essential text.
 
@@ -82,7 +82,7 @@ Visual expression: Grid-based precision, bold photography or stark graphics, dra
 - **PURE DESIGN**: This is about making ART OBJECTS, not documents with decoration
 - **EXPERT CRAFTSMANSHIP**: Repeatedly emphasize the final work must look meticulously crafted, labored over with care, the product of countless hours by someone at the top of their field
 
-**The design philosophy should be 4-6 paragraphs long.** Fill it with poetic design philosophy that brings together the core vision. Avoid repeating the same points. Keep the design philosophy generic without mentioning the intention of the art, as if it can be used wherever. Output the design philosophy as a .md file.
+**The design philosophy should be 4-6 paragraphs long.** Fill it with poetic design philosophy that brings together the core vision. Avoid repeating the same points. Keep the design philosophy generic without mentioning the intention of the art, as if it can be used wherever. Keep the philosophy in planning or the response unless a separate .md file is requested.
 
 ---
 
@@ -107,23 +107,23 @@ To create museum or magazine quality work, use the design philosophy as the foun
 
 **Text as a contextual element**: Text is always minimal and visual-first, but let context guide whether that means whisper-quiet labels or bold typographic gestures. A punk venue poster might have larger, more aggressive type than a minimalist ceramics studio identity. Most of the time, font should be thin. All use of fonts must be design-forward and prioritize visual communication. Regardless of text scale, nothing falls off the page and nothing overlaps. Every element must be contained within the canvas boundaries with proper margins. Check carefully that all text, graphics, and visual elements have breathing room and clear separation. This is non-negotiable for professional execution. **IMPORTANT: Use different fonts if writing text. Search the `./canvas-fonts` directory. Regardless of approach, sophistication is non-negotiable.**
 
-Download and use whatever fonts are needed to make this a reality. Get creative by making the typography actually part of the art itself -- if the art is abstract, bring the font onto the canvas, not typeset digitally.
+Prefer available fonts. Obtain approval before downloading or installing fonts, and check each font's actual use, embedding and redistribution terms; the skill license does not license its fonts. Make typography part of the art within those constraints.
 
 To push boundaries, follow design instinct/intuition while using the philosophy as a guiding principle. Embrace ultimate design freedom and choice. Push aesthetics and design to the frontier. 
 
 **CRITICAL**: To achieve human-crafted quality (not AI-generated), create work that looks like it took countless hours. Make it appear as though someone at the absolute top of their field labored over every detail with painstaking care. Ensure the composition, spacing, color choices, typography - everything screams expert-level craftsmanship. Double-check that nothing overlaps, formatting is flawless, every detail perfect. Create something that could be shown to people to prove expertise and rank as undeniably impressive.
 
-Output the final result as a single, downloadable .pdf or .png file, alongside the design philosophy used as a .md file.
+Output the requested .pdf or .png file. Include a separate philosophy .md file only when requested.
 
 ---
 
 ## FINAL STEP
 
-**IMPORTANT**: The user ALREADY said "It isn't perfect enough. It must be pristine, a masterpiece if craftsmanship, as if it were about to be displayed in a museum."
+Review against the actual brief and user feedback; do not invent a user quotation or demand for revisions.
 
 **CRITICAL**: To refine the work, avoid adding more graphics; instead refine what has been created and make it extremely crisp, respecting the design philosophy and the principles of minimalism entirely. Rather than adding a fun filter or refactoring a font, consider how to make the existing composition more cohesive with the art. If the instinct is to call a new function or draw a new shape, STOP and instead ask: "How can I make what's already here more of a piece of art?"
 
-Take a second pass. Go back to the code and refine/polish further to make this a philosophically designed masterpiece.
+Take a second review pass and refine only observed issues or requested changes; a clean result does not require an artificial revision.
 
 ## MULTI-PAGE OPTION
 

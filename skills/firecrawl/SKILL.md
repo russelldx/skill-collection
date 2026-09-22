@@ -1,7 +1,6 @@
 ---
 name: firecrawl
-description: |
-  Search, scrape, and interact with the web via the Firecrawl CLI. Use this skill whenever the user wants to search the web, find articles, research a topic, look something up online, scrape a webpage, grab content from a URL, get data from a website, crawl documentation, download a site, or interact with pages that need clicks or logins. Also use when they say "fetch this page", "pull the content from", "get the page at https://", or reference external websites. This provides real-time web search with full page content and interact capabilities — beyond what Claude can do natively with built-in tools. Do NOT trigger for local file operations, git commands, deployments, or code editing tasks.
+description: Search, scrape, crawl, download, and interact with websites via the Firecrawl CLI when Firecrawl is selected for the task. Provides CLI workflows for web search and extraction; does not require replacing other suitable search, fetch, or browser tools. Local document parsing requires explicit Firecrawl/cloud-upload authorization. Do not trigger merely for local file operations, git commands, deployments, or unrelated code editing.
 allowed-tools:
   - Bash(firecrawl *)
   - Bash(npx firecrawl *)
@@ -9,11 +8,13 @@ allowed-tools:
 
 # Firecrawl CLI
 
-Search, scrape, and interact with the web. Returns clean markdown optimized for LLM context windows.
+Search, scrape, and interact with the web when Firecrawl is selected. Returns clean markdown optimized for LLM context windows.
 
-Run `firecrawl --help` or `firecrawl <command> --help` for full option details.
+These are **CLI workflows**, not requirements to install or use Firecrawl MCP. MCP is an optional, separate interface: use its exposed tool schemas and limits, not CLI flags. For the user's existing local browser session, prefer an authorized local browser tool or web-access; Firecrawl hosted sessions/profiles do not inherit local Chrome/Edge login state.
 
-If the task is to integrate Firecrawl into an application, add `FIRECRAWL_API_KEY` to a project, or choose endpoint usage in product code, use the `firecrawl-build` skills. They are already installed alongside this CLI skill when you run `firecrawl init`.
+Run `firecrawl --help` or `firecrawl <command> --help` for full option details. Read [security rules](rules/security.md) before sending private data, uploading files, or performing account actions. Tool availability and credentials do not grant permission for login, submission, or upload.
+
+For application integration, start with [firecrawl-build-onboarding](../firecrawl-build-onboarding/SKILL.md) and its language-specific official documentation links. For product browser actions, use [firecrawl-build-interact](../firecrawl-build-interact/SKILL.md).
 
 ## Prerequisites
 
@@ -32,16 +33,20 @@ Must be installed and authenticated. Check with `firecrawl --status`.
 
 If not ready, see [rules/install.md](rules/install.md). For output handling guidelines, see [rules/security.md](rules/security.md).
 
-Before doing real work, verify the setup with one small request:
+Status is not end-to-end verification. If the user authorizes a live smoke test, use one small in-scope request and report the actual result; do not fetch an unrelated site automatically or install/authenticate as a side effect of diagnosis.
+
+## Search
+
+Use `search` when Firecrawl is selected and no exact URL is known. Quote the query, keep the limit small, and inspect results before expanding scope:
 
 ```bash
 mkdir -p .firecrawl
-firecrawl scrape "https://firecrawl.dev" -o .firecrawl/install-check.md
+firecrawl search "query" --limit 3 --json -o .firecrawl/search.json
+# Include page content when needed; avoid re-scraping these results
+firecrawl search "query" --scrape --limit 3 -o .firecrawl/search-content.json
 ```
 
-```bash
-firecrawl search "query" --scrape --limit 3
-```
+Use `firecrawl search --help` for the installed CLI's options. For code integration rather than CLI use, see [onboarding endpoint selection](../firecrawl-build-onboarding/SKILL.md#endpoint-selection).
 
 ## Workflow
 
@@ -62,7 +67,7 @@ Follow this escalation pattern:
 | AI-powered data extraction  | `agent`               | Need structured data from complex sites                   |
 | Interact with a page        | `scrape` + `interact` | Content requires clicks, form fills, pagination, or login |
 | Download a site to files    | `download`            | Save an entire site as local files                        |
-| Parse a local file          | `parse`               | File on disk (PDF, DOCX, XLSX, etc.) — not a URL          |
+| Parse a local file          | `parse`               | Only after explicit authorization to upload the selected file to Firecrawl |
 
 For detailed command reference, run `firecrawl <command> --help`.
 
@@ -79,21 +84,22 @@ For detailed command reference, run `firecrawl <command> --help`.
 
 ## When to Load References
 
-- **Searching the web or finding sources first** -> [firecrawl-search](../firecrawl-search/SKILL.md)
+- **Searching the web or finding sources first** -> [Search](#search) (`firecrawl search`)
 - **Scraping a known URL** -> [firecrawl-scrape](../firecrawl-scrape/SKILL.md)
 - **Finding URLs on a known site** -> [firecrawl-map](../firecrawl-map/SKILL.md)
 - **Bulk extraction from a docs section or site** -> [firecrawl-crawl](../firecrawl-crawl/SKILL.md)
 - **AI-powered structured extraction from complex sites** -> [firecrawl-agent](../firecrawl-agent/SKILL.md)
 - **Clicks, forms, login, pagination, or post-scrape browser actions** -> [firecrawl-interact](../firecrawl-interact/SKILL.md)
 - **Downloading a site to local files** -> [firecrawl-download](../firecrawl-download/SKILL.md)
-- **Parsing a local file (PDF, DOCX, XLSX, HTML, etc.)** -> [firecrawl-parse](../firecrawl-parse/SKILL.md)
+- **Parsing a local file after explicit cloud-upload authorization** -> [firecrawl-parse](../firecrawl-parse/SKILL.md); otherwise prefer local document tools
 - **Install, auth, or setup problems** -> [rules/install.md](rules/install.md)
 - **Output handling and safe file-reading patterns** -> [rules/security.md](rules/security.md)
-- **Integrating Firecrawl into an app, adding `FIRECRAWL_API_KEY` to `.env`, or choosing endpoint usage in product code** -> use the `firecrawl-build` skills (already installed alongside this CLI skill)
+- **Application credentials, SDK setup, or endpoint selection** -> [firecrawl-build-onboarding](../firecrawl-build-onboarding/SKILL.md)
+- **Product code needing post-scrape actions** -> [firecrawl-build-interact](../firecrawl-build-interact/SKILL.md)
 
 ## Output & Organization
 
-Unless the user specifies to return in context, write results to `.firecrawl/` with `-o`. Add `.firecrawl/` to `.gitignore`. Always quote URLs - shell interprets `?` and `&` as special characters.
+Unless the user specifies to return in context, write results to `.firecrawl/` with `-o`. If `.firecrawl/` is not already ignored, check the ignore rules first and get user approval before editing `.gitignore`; fetched content must stay out of version control. Always quote URLs - shell interprets `?` and `&` as special characters.
 
 ```bash
 firecrawl search "react hooks" -o .firecrawl/search-react-hooks.json --json
@@ -108,7 +114,7 @@ Naming conventions:
 .firecrawl/{site}-{path}.md
 ```
 
-Never read entire output files at once. Use `grep`, `head`, or incremental reads:
+Prefer bounded reads (`grep`, `head`, incremental reads); read a whole output file only when the authorized task requires it, in chunks:
 
 ```bash
 wc -l .firecrawl/file.md && head -50 .firecrawl/file.md

@@ -184,7 +184,7 @@ Copy `<a:pPr>` from the original paragraph to preserve line spacing. Use `b="1"`
 
 ### Smart Quotes
 
-Handled automatically by unpack/pack. But the Edit tool converts smart quotes to ASCII.
+Handled automatically by unpack/pack. The Edit tool does not always preserve or convert smart quotes — inspect the actual characters after editing and keep the required Unicode characters intact (left/right quotes must stay distinct, not be replaced with plain ASCII quotes).
 
 **When adding new text with quotes, use XML entities:**
 

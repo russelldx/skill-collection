@@ -15,15 +15,17 @@ skill 的 hook 属于"语义上的一部分、运行时在别处"。以前只存
 
 ## 部署与升级
 
+**独立授权门槛**：以下命令会写全局运行时目录并可能影响后续所有会话。先说明目标路径、覆盖/备份和检查行为，只有用户明确批准全局 hooks 安装/升级才可执行。允许创建交接文件、编辑 AGENTS.md/.gitignore 或改本目录源码，均不等于批准安装。反之，安装授权也不允许自动创建项目交接文件或修改 AGENTS.md/.gitignore；这些分别检查授权。权限/配置变更仍按系统/开发者要求处理，不绕过限制。
+
 ```
-# 把 skill 里的 hook 复制到 ~/.qoder/hooks/（旧的不一致版本先备份到 .backup/，sha256 校验）
+# 仅在用户明确授权全局部署后：复制到 ~/.qoder/hooks/（旧版备份、sha256 校验）
 python scripts/handoff.py install-hooks
 
 # 部署到别处（如自定义路径）
 python scripts/handoff.py install-hooks --target "$HOME/other/hooks"
 ```
 
-修改流程：**只改本目录**（源），再跑 install-hooks 把新内容刷到运行时。反向（改运行时、忘同步到 skill）会造成下次 install 时被覆盖——所以别在 `~/.qoder/hooks/` 就地编辑。
+修改流程：在用户授权范围内改本目录源码；只有另行获准全局升级时才运行 install-hooks。未获准则保留为源码改动并报告“未部署”。不要在 `~/.qoder/hooks/` 就地编辑，也不要因 hook 提示自动扩大持久文件/配置编辑权限。
 
 ## 其他宿主 / 部署目标
 

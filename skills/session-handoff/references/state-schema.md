@@ -3,6 +3,7 @@
 > 触发：需要机器可解析的当前态、活跃区超阈要折叠、或要跨会话找回旧结论时 Read 本文件。
 > 背景：原 session-handoff 只有 append-only 的 `HANDOFF.md`（事件日志），缺①机器可读的当前态、②分层降采样（只有 20 KB 一刀切）、③跨会话语义召回。本文件把后端的老原则搬进来：**CQRS（读写模型分离）+ 冷热分层（存储分级）+ log compaction**。
 > **不依赖 claude-mem / 任何网络**：检索用随包的 `scripts/handoff.py`（纯标准库 BM25，CJK 友好）。
+> **先授权**：创建/更新 STATE.json、INDEX.md、交接、归档、备份等持久文件及运行 `init`/`index`，仅限用户已批准的目录与目的。AGENTS.md 和 .gitignore 编辑需分别明确授权；`install-hooks` 的全局部署/升级是另一项独立授权，不能由文档更新许可推导。未获准只回复建议；系统/开发者指令优先。
 
 ## 一、读模型：STATE.json（物化视图 / read model）
 
@@ -75,7 +76,7 @@ handoff.py install-hooks [--source DIR --target DIR]    # 把 skill hooks/*.sh �
 
 `status` 是**跨文档全局索引的"当前态"那一半**：递归 root 下所有 `STATE.json`（自动跳过 `.backup/archive/node_modules/.git` 等），每个任务一行，按 `blocked < in-progress < done` 优先级、再按"距今多少天"降序排——所以下面几个总是最该接的。`--status blocked,in-progress` 只看没闭环的，`--stale-days 7` 只揪一周没动静的僵尸任务，`--format json` 给脚本/仪表盘消费。它只读 STATE.json（读模型），不 parse 大段 markdown，所以很快；前提是每个会话都守住了"改文档同轮刷 STATE"的规矩（漏刷的会被 validate 抓）。
 
-`install-hooks` 解决"skill 里的 hook 是源、`~/.qoder/hooks` 是运行时副本"的同步问题：内容一致跳过，有变动先把运行时旧版备份到 `~/.qoder/hooks/.backup/<fn>.pre-install-<ts>` 再覆盖并 sha256 复核。改 hook 永远改 skill `hooks/` 里那份，再跑一次它部署，别直接编辑运行时副本。
+`install-hooks` 解决"skill 里的 hook 是源、`~/.qoder/hooks` 是运行时副本"的同步问题：内容一致跳过，有变动先把运行时旧版备份到 `~/.qoder/hooks/.backup/<fn>.pre-install-<ts>` 再覆盖并 sha256 复核。仅在用户批准的源文件范围内改动；部署前另行取得全局 hooks 升级授权。改源不自动部署，也不直接编辑运行时副本。
 
 ## 五、与既有件的关系
 

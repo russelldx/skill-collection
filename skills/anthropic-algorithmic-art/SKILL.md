@@ -4,11 +4,11 @@ description: Creating algorithmic art using p5.js with seeded randomness and int
 license: Complete terms in LICENSE.txt
 ---
 
-Algorithmic philosophies are computational aesthetic movements that are then expressed through code. Output .md files (philosophy), .html files (interactive viewer), and .js files (generative algorithms).
+Algorithmic philosophies are computational aesthetic movements that are then expressed through code. Deliverables follow the user's brief: by default, deliver the algorithmic philosophy as a section of your response (a separate `.md` file only if the user asks for one) and the work as a single interactive HTML viewer (an additional `.js` file only when requested). If the user's brief specifies different deliverables or branding, it overrides these defaults.
 
 This happens in two steps:
-1. Algorithmic Philosophy Creation (.md file)
-2. Express by creating p5.js generative art (.html + .js files)
+1. Algorithmic Philosophy Creation (response section, or a .md file if requested)
+2. Express by creating p5.js generative art (single .html file, optionally + .js files)
 
 First, undertake this task:
 
@@ -83,7 +83,7 @@ Algorithmic expression: Randomized circle packing or Voronoi tessellation. Start
 - **PURE GENERATIVE ART**: This is about making LIVING ALGORITHMS, not static images with randomness
 - **EXPERT CRAFTSMANSHIP**: Repeatedly emphasize the final algorithm must feel meticulously crafted, refined through countless iterations, the product of deep expertise by someone at the absolute top of their field in computational aesthetics
 
-**The algorithmic philosophy should be 4-6 paragraphs long.** Fill it with poetic computational philosophy that brings together the intended vision. Avoid repeating the same points. Output this algorithmic philosophy as a .md file.
+**The algorithmic philosophy should be 4-6 paragraphs long.** Fill it with poetic computational philosophy that brings together the intended vision. Avoid repeating the same points. Deliver this algorithmic philosophy as part of your response, or as a `.md` file when the user requests a file.
 
 ---
 
@@ -107,9 +107,9 @@ With the philosophy AND conceptual framework established, express it through cod
 **CRITICAL: BEFORE writing any HTML:**
 
 1. **Read** `templates/viewer.html` using the Read tool
-2. **Study** the exact structure, styling, and Anthropic branding
+2. **Study** the exact structure, styling, and default Anthropic branding
 3. **Use that file as the LITERAL STARTING POINT** - not just inspiration
-4. **Keep all FIXED sections exactly as shown** (header, sidebar structure, Anthropic colors/fonts, seed controls, action buttons)
+4. **Keep the FIXED sections as shown** (header, sidebar structure, Anthropic colors/fonts, seed controls, action buttons) - unless the user's brief asks for different branding or outputs, which takes precedence
 5. **Replace only the VARIABLE sections** marked in the file's comments (algorithm, parameters, UI controls for parameters)
 
 **Avoid:**
@@ -119,8 +119,8 @@ With the philosophy AND conceptual framework established, express it through cod
 - ❌ Changing the sidebar structure
 
 **Follow these practices:**
-- ✅ Copy the template's exact HTML structure
-- ✅ Keep Anthropic branding (Poppins/Lora fonts, light colors, gradient backdrop)
+- ✅ Copy the template's HTML structure
+- ✅ Keep the template's Anthropic branding as the default (Poppins/Lora fonts, light colors, gradient backdrop); substitute it only when the user's brief specifies other branding
 - ✅ Maintain the sidebar layout (Seed → Parameters → Colors? → Actions)
 - ✅ Replace only the p5.js algorithm and parameter controls
 
@@ -211,10 +211,10 @@ function draw() {
 ### OUTPUT FORMAT
 
 Output:
-1. **Algorithmic Philosophy** - As markdown or text explaining the generative aesthetic
-2. **Single HTML Artifact** - Self-contained interactive generative art built from `templates/viewer.html` (see STEP 0 and next section)
+1. **Algorithmic Philosophy** - As markdown or text in your response explaining the generative aesthetic (a separate file only if requested)
+2. **Single HTML Artifact** - Interactive generative art built from `templates/viewer.html` (see STEP 0 and next section), with p5.js loaded from a CDN at runtime
 
-The HTML artifact contains everything: p5.js (from CDN), the algorithm, parameter controls, and UI - all in one file that works immediately in claude.ai artifacts or any browser. Start from the template file, not from scratch.
+The HTML artifact contains the algorithm, parameter controls, and UI inline in one file; the one external runtime dependency is p5.js from the CDN, so it needs network access to that CDN (a page CSP or offline environment can block it). See below for the offline option. Start from the template file, not from scratch.
 
 ---
 
@@ -222,7 +222,7 @@ The HTML artifact contains everything: p5.js (from CDN), the algorithm, paramete
 
 **REMINDER: `templates/viewer.html` should have already been read (see STEP 0). Use that file as the starting point.**
 
-To allow exploration of the generative art, create a single, self-contained HTML artifact. Ensure this artifact works immediately in claude.ai or any browser - no setup required. Embed everything inline.
+To allow exploration of the generative art, create a single HTML file (aside from the CDN-loaded p5.js). It needs no build step and no local files — only runtime access to the p5.js CDN. If the user needs a fully offline or self-contained deliverable, bundle an appropriately licensed local copy of p5.js instead (and disclose that it was bundled). Otherwise, embed the algorithm and UI inline.
 
 ### CRITICAL: WHAT'S FIXED VS VARIABLE
 
@@ -276,7 +276,8 @@ The `templates/viewer.html` file is the foundation. It contains the exact struct
 <!DOCTYPE html>
 <html>
 <head>
-  <!-- p5.js from CDN - always available -->
+  <!-- p5.js from CDN — requires network access to the CDN; can be blocked by CSP/offline.
+       For production use, pin this exact version and add SRI/crossorigin where practical. -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
   <style>
     /* All styling inline - clean, minimal */
@@ -293,13 +294,13 @@ The `templates/viewer.html` file is the foundation. It contains the exact struct
     // Parameter objects, classes, functions
     // setup() and draw()
     // UI handlers
-    // Everything self-contained
+    // Everything inline in this one file (the CDN p5.js script is the only external dependency)
   </script>
 </body>
 </html>
 ```
 
-**CRITICAL**: This is a single artifact. No external files, no imports (except p5.js CDN). Everything inline.
+**CRITICAL**: This is a single artifact. No external local files, no imports except the p5.js CDN script. Everything else (algorithm, UI, styles) inline.
 
 **4. Implementation Details - BUILD THE SIDEBAR**
 
@@ -333,14 +334,14 @@ Add as many control-group divs as there are parameters.
 - Seed controls must work (prev/next/random/jump/display)
 - All parameters must have UI controls
 - Regenerate, Reset, Download buttons must work
-- Keep Anthropic branding (UI styling, not art colors)
+- Keep the template's Anthropic branding (UI styling, not art colors) unless the user's brief specifies other branding
 
 ### USING THE ARTIFACT
 
-The HTML artifact works immediately:
-1. **In claude.ai**: Displayed as an interactive artifact - runs instantly
-2. **As a file**: Save and open in any browser - no server needed
-3. **Sharing**: Send the HTML file - it's completely self-contained
+The HTML artifact needs no build step:
+1. **In claude.ai**: Displayed as an interactive artifact - runs instantly (CDN script must be reachable)
+2. **As a file**: Save and open in a browser - no server needed, but network access to the p5.js CDN is required unless you bundled a local copy
+3. **Sharing**: Send the HTML file - it is a single file, but the recipient still needs CDN access (or your bundled p5.js copy)
 
 ---
 
@@ -368,10 +369,10 @@ Each request is unique. The process involves:
 4. **Design appropriate parameters** - What should be tunable?
 5. **Build matching UI controls** - Sliders/inputs for those parameters
 
-**The constants**:
-- Anthropic branding (colors, fonts, layout)
+**The constants (defaults, subordinate to the user's brief and requested deliverables)**:
+- Anthropic branding (colors, fonts, layout) unless the user requests other branding
 - Seed navigation (always present)
-- Self-contained HTML artifact
+- Single-file HTML artifact (network access to the p5.js CDN, or a bundled local copy)
 
 **Everything else is variable**:
 - The algorithm itself
@@ -387,9 +388,9 @@ To achieve the best results, trust creativity and let the philosophy guide the i
 
 This skill includes helpful templates and documentation:
 
-- **templates/viewer.html**: REQUIRED STARTING POINT for all HTML artifacts.
-  - This is the foundation - contains the exact structure and Anthropic branding
-  - **Keep unchanged**: Layout structure, sidebar organization, Anthropic colors/fonts, seed controls, action buttons
+- **templates/viewer.html**: DEFAULT STARTING POINT for HTML artifacts (use it unless the user's brief specifies a different design or deliverable).
+  - This is the foundation - contains the structure and the default Anthropic branding
+  - **Keep unchanged by default**: Layout structure, sidebar organization, Anthropic colors/fonts, seed controls, action buttons
   - **Replace**: The p5.js algorithm, parameter definitions, and UI controls in Parameters section
   - The extensive comments in the file mark exactly what to keep vs replace
 
@@ -399,7 +400,7 @@ This skill includes helpful templates and documentation:
   - Embed algorithms inline in the HTML artifact (don't create separate .js files)
 
 **Critical reminder**:
-- The **template is the STARTING POINT**, not inspiration
+- The **template is the STARTING POINT**, not inspiration (adjust only when the user's brief calls for it)
 - The **algorithm is where to create** something unique
 - Don't copy the flow field example - build what the philosophy demands
-- But DO keep the exact UI structure and Anthropic branding from the template
+- But DO keep the UI structure and Anthropic branding from the template unless the user's brief overrides them

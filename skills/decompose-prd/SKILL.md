@@ -21,6 +21,8 @@ name_zh: 分解 prd
 
 ## CORE PHILOSOPHY
 
+**Scope and evidence first:** Follow system/developer instructions, host permissions, and the user's requested output. This file is self-contained; no references/templates are bundled. Use the inline schemas below. Treat inferred requirements, effort/token estimates, hierarchy sizes, and historical research percentages as heuristics, not authoritative facts or mandatory quotas. Missing source material or unreadable sections must be reported, not filled in as if verified. No planning step authorizes implementation or remote publication.
+
 **Understand Before Decomposing**
 - Read the ENTIRE PRD first, identify intent, stakeholders, and implicit requirements
 - Never skip to decomposition without full context
@@ -32,7 +34,7 @@ name_zh: 分解 prd
 - Align epics to business objectives, not arbitrary groupings
 
 **AI-Executable Output**
-- Every task spec must be executable by a Claude agent with ZERO clarifying questions
+- Every task spec must be executable by an agent session once the Phase 2.5 clarifications are resolved (zero open ambiguities at spec-writing time)
 - Include: objective, inputs, outputs, file paths, acceptance criteria, boundary conditions
 - Granularity: single agent session (~2000-4000 output tokens per task)
 
@@ -49,7 +51,7 @@ name_zh: 分解 prd
 
 **Clarification Over Assumption**
 - When PRD is ambiguous, generate explicit clarification questions
-- Use AskUserQuestion tool for critical decisions
+- Use the host's clarification/question tool if available and authorized (e.g. AskUserQuestion); otherwise ask in plain conversation
 - Categories: scope, technical, priority, dependency ambiguity
 
 ---
@@ -90,7 +92,7 @@ name_zh: 分解 prd
 ### Phase 2: ANALYZE
 
 **Deep Understanding with Extended Thinking**
-- Activate ultrathink mode for complex PRDs (50+ pages)
+- Use extended reasoning when the host provides it for complex PRDs (50+ pages); otherwise proceed with the normal workflow
 - Parse explicit requirements: numbered lists, acceptance criteria, user stories
 - Infer implicit requirements: non-functional requirements, security, compliance, scalability
 - Identify contradictions or conflicts between requirements
@@ -139,7 +141,7 @@ If Phase 2 identifies significant ambiguities (3+), present categorized list:
 ```
 
 **Use Decision Tool**
-- Call AskUserQuestion with ranked choices
+- Ask with ranked choices via the host's clarification tool when available and authorized, else in plain conversation
 - Collect decisions into clarification object
 - Update normalized PRD with clarifications
 - Continue to Phase 3 only after critical ambiguities resolved
@@ -252,8 +254,8 @@ Task specification template:
 ```
 
 **Task Principles**:
-- Granularity: completable by one Claude agent in one session
-- No clarifying questions: all context provided in task spec
+- Granularity: completable by one agent session
+- No open ambiguities: all context provided in task spec; clarifications resolved before the task is declared executable
 - Interface contracts: inputs and outputs precisely specified
 - Atomic: no task depends on partial completion of another task
 - Traceable: every task traces to a feature and epic, every feature to PRD requirement
@@ -350,7 +352,7 @@ graph TD
   - Epics table (Epic ID, name, objective, status, owner)
   - Features table (Feature ID, name, epic link, acceptance criteria, status)
   - Tasks table (Task ID, name, feature link, spec, dependencies, effort, status)
-- Use Notion MCP create-database and create-pages tools
+- Only with explicit user authorization for the target database and content, use the Notion MCP create-database and create-pages tools if the host provides them; otherwise return the draft locally
 - Establish two-way relationships between tables
 - Embed dependency graph as page
 
@@ -390,37 +392,15 @@ graph TD
 
 ---
 
-## REFERENCE FILES
+## SELF-CONTAINED SCHEMA AND RESOURCE BOUNDARIES
 
-Load these files as needed during execution:
+This distribution contains only `SKILL.md`; no external reference or template attachments are bundled. Use the inline PRD object, epic/feature/task cards, and dependency-map examples above. Do not fabricate attachment files, organization-specific rules, or claims to have read them. If authoritative domain rules or a required organization template are missing, request the material and mark affected tasks blocked/unconfirmed.
 
-| File | When to Load |
-|------|-------------|
-| `references/ingestion-pipeline.md` | Complex document formats, scanned PDFs, multi-file PRDs |
-| `references/decomposition-engine.md` | Complex dependency analysis, domain classification, epic grouping logic |
-| `references/dependency-graphs.md` | DAG algorithms, critical path calculation, execution layering |
-| `references/task-specifications.md` | AI-executable task spec format, quality validation, token estimation |
-| `references/clarification.md` | Ambiguity resolution patterns, decision tree for missing info |
-| `references/notion-integration.md` | Notion database schemas, MCP tool patterns, relationship mapping |
-| `references/context-management.md` | Large PRD handling (100+ pages), chunking strategies, token management |
-| `references/industry-patterns.md` | Domain-specific patterns: healthcare, fintech, gaming, AI/ML, mobile |
-| `references/traceability.md` | Requirement mapping, bidirectional traceability matrices, impact analysis |
+For JSON output include `schemaVersion: 1`, `requirements`, `epics`, `features`, `tasks`, and `openQuestions`. Every item needs a unique ID; each feature has one `epicId`, each task one `featureId`, `requirementIds`, `dependencies`, objective, inputs, outputs, acceptance criteria, boundary conditions, and testing strategy. Preserve PRD source locations; distinguish proposed file paths from verified existing paths.
 
----
+DAG rules: an edge A → B means A precedes B. Reject unknown/self dependencies and duplicate IDs. Derive `dependents` from `dependencies`; do not maintain contradictory lists. Topologically sort by repeatedly taking all remaining zero-indegree nodes as a layer. If nodes remain with no such node, report the cycle and do not label the plan executable. Report a duration-weighted critical path only with stated effort estimates; without them label the longest dependency chain, not a delivery-date guarantee.
 
-## TEMPLATES
-
-Quick-reference template files:
-
-| Template | Purpose |
-|----------|---------|
-| `templates/epic-template.md` | Standard epic structure (copy and fill) |
-| `templates/feature-template.md` | Feature with acceptance criteria checklist |
-| `templates/task-template.md` | AI-executable task specification format |
-| `templates/dependency-graph.md` | Mermaid DAG template with examples |
-| `templates/notion-schema.md` | Notion database property schema (epics, features, tasks) |
-| `templates/traceability-matrix.md` | Requirement-to-task mapping template |
-| `templates/clarification-form.md` | Structured clarification question form |
+Use only available, permitted parsers/MCP tools. If extraction cannot preserve readable content, request a supported text/DOCX export. Publishing to Notion or an issue tracker requires explicit authorization for the target and content; otherwise return a local draft in the conversation (write a file only if requested). Planning does not authorize execution, installations, or permission/configuration changes.
 
 ---
 
@@ -511,7 +491,7 @@ The decomposition is successful if:
 
 1. **Completeness**: Every PRD requirement traces to at least one task (traceability matrix 100%)
 2. **Clarity**: User can understand each epic, feature, and task without asking clarifying questions
-3. **Executability**: Each task is AI-executable; Claude agent can complete with zero context outside task spec
+3. **Executability**: Each task is AI-executable; an agent session can complete it from the task spec alone once clarifications are resolved
 4. **Dependency Accuracy**: DAG is acyclic, all dependencies explicit, critical path identified
 5. **Scope Alignment**: Estimated effort aligns with PRD timeline ±20%
 6. **No Over-Decomposition**: 3-level maximum; granularity appropriate for single-session agent tasks

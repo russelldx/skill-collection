@@ -1,11 +1,22 @@
 ---
 name: smart-explore
-description: Token-optimized structural code search using tree-sitter AST parsing. Use instead of reading full files when you need to understand code structure, find functions, or explore a codebase efficiently.
+description: Token-optimized structural code exploration with available AST tools or scoped standard-tool fallback. Supports explicitly user-requested full-file reading with declared scope, file/token budgets, and stopping conditions.
 ---
 
 # Smart Explore
 
-Structural code exploration using AST parsing. **This skill overrides your default exploration behavior.** While this skill is active, use smart_search/smart_outline/smart_unfold as your primary tools instead of Read, Grep, and Glob.
+Structural code exploration using AST parsing. Prefer smart_search/smart_outline/smart_unfold when available and permitted; this skill does not override system/developer instructions, host tool constraints, or the user's scope. Fall back to scoped Glob/Grep/Read if the MCP tools are unavailable or unsuitable.
+
+## Explicit Full-Read Mode (Opt-In)
+
+Use this mode only when the user explicitly asks to read files in full. A generic request to learn or explore a repository stays in structural mode.
+
+1. Declare the scope (root plus included paths/globs and exclusions), maximum file count, approximate token budget, and stopping condition before reading. Honor user-provided limits; otherwise use a conservative ceiling of 20 files / 20,000 input tokens, whichever is reached first. Do not scan secrets, dependencies, generated output, binaries, or unrelated repositories by default.
+2. Inventory the scoped files and estimate cost. If the requested whole-repository read exceeds the ceiling, explain the gap and read only a clearly labeled bounded first batch; do not silently increase the budget.
+3. Read selected files in full with Read, paging large files. Track completed files, partial files, and approximate consumed tokens. A file cut off by the budget is not fully read.
+4. Stop when the agreed scope is covered, the user's question is answered, either budget is reached, access is denied, or the user stops. Report coverage and unread paths; obtain explicit scope/budget authorization before continuing beyond the limit.
+
+See [bounded full-reading technique](references/learn-codebase/REFERENCE.md) for paging details. That reference is not an independently invokable skill. In this mode the structural-first next-call guidance below does not apply.
 
 **Core principle:** Index first, fetch on demand. Give yourself a map of the code before loading implementation details. The question before every file read should be: "do I need to see all of this, or can I get a structural overview first?" The answer is almost always: get the map.
 
@@ -19,7 +30,7 @@ smart_outline(file_path="<file>")              -- structural skeleton of one fil
 smart_unfold(file_path="<file>", symbol_name="<name>")  -- full source of one symbol
 ```
 
-Do NOT run Grep, Glob, Read, or find to discover files first. `smart_search` walks directories, parses all code files, and returns ranked symbols in one call. It replaces the Glob → Grep → Read discovery cycle.
+In structural mode, prefer `smart_search` for first discovery when available and permitted. It walks directories, parses code, and returns ranked symbols. Use scoped Grep/Glob/Read when unavailable, denied, unsuitable, or when the explicit full-read mode applies; never bypass a permission denial.
 
 ## 3-Layer Workflow
 
@@ -82,7 +93,7 @@ smart_unfold(file_path="services/worker-service.ts", symbol_name="shutdown")
 
 ## When to Use Standard Tools Instead
 
-Use these only when smart_* tools are the wrong fit:
+Use these when smart_* tools are unavailable, not permitted, the wrong fit, or explicit full-read mode applies:
 
 - **Grep:** Exact string/regex search ("find all TODO comments", "where is `ensureWorkerStarted` defined?")
 - **Read:** Small files under ~100 lines, non-code files (JSON, markdown, config)

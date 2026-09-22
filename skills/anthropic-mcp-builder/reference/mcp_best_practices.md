@@ -208,6 +208,7 @@ Provide annotations to help clients understand tool behavior:
 - Report tool errors within result objects (not protocol-level errors)
 - Provide helpful, specific error messages with suggested next steps
 - Don't expose internal implementation details
+- Return a sanitized public message with an opaque correlation identifier; keep raw `error.message`/stack traces in server-side logs only
 - Clean up resources properly on errors
 
 Example error handling:
@@ -216,11 +217,15 @@ try {
   const result = performOperation();
   return { content: [{ type: "text", text: result }] };
 } catch (error) {
+  // Full diagnostics stay server-side; the client sees a sanitized message
+  // plus an opaque reference the operator can use to find the real error.
+  const correlationId = `err-${Date.now().toString(36)}`;
+  console.error(`[${correlationId}]`, error);
   return {
     isError: true,
     content: [{
       type: "text",
-      text: `Error: ${error.message}. Try using filter='active_only' to reduce results.`
+      text: `The operation failed (reference: ${correlationId}). Try using filter='active_only' to reduce results.`
     }]
   };
 }

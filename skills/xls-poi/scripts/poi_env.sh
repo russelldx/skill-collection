@@ -1,23 +1,52 @@
 #!/usr/bin/env bash
-# xls-poi skill 环境：Java 8 + POI 4.1.2（路径已固化，正斜杠避免 Git Bash 转义问题）
-# 用法: source poi_env.sh 后调用 poi_compile / poi_run；或 bash poi_env.sh <MainClass> <args...>
-POI_CP="D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/poi/poi/4.1.2/poi-4.1.2.jar;D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/poi/poi-ooxml/4.1.2/poi-ooxml-4.1.2.jar;D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/poi/poi-ooxml-schemas/4.1.2/poi-ooxml-schemas-4.1.2.jar;D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/xmlbeans/xmlbeans/3.1.0/xmlbeans-3.1.0.jar;D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/commons/commons-compress/1.19/commons-compress-1.19.jar;D:/develop/apache-maven-3.6.3/mvn_repo/com/github/virtuald/curvesapi/1.04/curvesapi-1.04.jar;D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/commons/commons-math3/3.6.1/commons-math3-3.6.1.jar;D:/develop/apache-maven-3.6.3/mvn_repo/commons-codec/commons-codec/1.13/commons-codec-1.13.jar;D:/develop/apache-maven-3.6.3/mvn_repo/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.jar;D:/develop/apache-maven-3.6.3/mvn_repo/commons-logging/commons-logging/1.2/commons-logging-1.2.jar"
+# Source this file, then compile/run retained inspection or template tools.
+# Dependencies must already exist. Nothing is downloaded or installed.
+POI_SCRIPTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) POI_CP_SEPARATOR=';' ;;
+  *) POI_CP_SEPARATOR=':' ;;
+esac
+
+poi_allowed() {
+  case "$1" in
+    DeleteColumn*|VerifyShift*)
+      printf '%s\n' 'PAUSED: delete-column and its incomplete verifier are reference-only.' >&2
+      return 2 ;;
+    DumpStructure|DumpAll|RowInfo|CheckRich|MergeTemplate) return 0 ;;
+    *) printf 'Unsupported POI entrypoint: %s\n' "$1" >&2; return 2 ;;
+  esac
+}
+
+poi_dependencies() {
+  if [ -z "${POI_CLASSPATH:-}" ]; then
+    printf '%s\n' 'Set POI_CLASSPATH to existing POI 4.1.2 and dependency jars (or an absolute lib/* directory). Use ; on Windows, : on POSIX. No dependencies are installed automatically.' >&2
+    return 2
+  fi
+}
 
 poi_compile() {
-  javac -encoding UTF-8 -cp "$POI_CP" "$@"
+  local source name
+  local sources=()
+  [ "$#" -gt 0 ] || { printf '%s\n' 'Supply retained Java source names, e.g. DumpStructure.java.' >&2; return 2; }
+  for source in "$@"; do
+    name="${source##*/}"
+    name="${name%.java}"
+    poi_allowed "$name" || return $?
+    sources+=("$POI_SCRIPTS_DIR/$name.java")
+  done
+  poi_dependencies || return $?
+  # Compile into the caller's scratch directory, never the skill or dependency tree.
+  javac -encoding UTF-8 -cp "$POI_CLASSPATH" -d . "${sources[@]}"
 }
 
 poi_run() {
-  local main="$1"
+  local main="${1:-}"
+  poi_allowed "$main" || return $?
   shift
-  java -Dfile.encoding=UTF-8 -cp "$POI_CP;." "$main" "$@"
+  poi_dependencies || return $?
+  java -Dfile.encoding=UTF-8 -cp ".${POI_CP_SEPARATOR}${POI_CLASSPATH}" "$main" "$@"
 }
 
-if [ "$0" != "bash" ] && [ "${BASH_SOURCE[0]}" != "$0" ]; then
-  # sourced
-  return 0 2>/dev/null
-fi
-
-if [ $# -ge 1 ]; then
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   poi_run "$@"
 fi

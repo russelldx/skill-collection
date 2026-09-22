@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 This skill takes the current conversation context and codebase understanding and produces a PRD. Do NOT interview the user — just synthesize what you already know.
 
-The issue tracker and triage label vocabulary should have been provided to you — run `/setup-matt-pocock-skills` if not.
+Use existing `docs/agents/issue-tracker.md` or user-provided tracker/source details when available. No setup command is bundled or required. If destination or label vocabulary is unknown, request that information or return a draft based on verified local/conversation sources; do not invent tracker configuration or install a setup skill. A request to synthesize a PRD does not itself authorize remote publication.
 
 ## Process
 
@@ -16,7 +16,7 @@ The issue tracker and triage label vocabulary should have been provided to you �
 
 Check with the user that these seams match their expectations.
 
-3. Write the PRD using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Draft the PRD using the template below. Publish only when the user explicitly requested publication to a known tracker and repository/project. Apply `ready-for-agent` only if it exists and matches the verified triage vocabulary; never create labels or configure the tracker implicitly. Otherwise return the draft inline (write a local file only if requested). Mark unresolved requirements rather than treating them as agent-ready.
 
 <prd-template>
 

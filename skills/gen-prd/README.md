@@ -9,6 +9,8 @@
 
 `/gen-prd` 技能用于通过交互式需求分析，生成完整的产品需求文档（PRD）。
 
+默认使用无知识库的访谈模式。本仓库没有 `skills/libs/domain-knowledge/` 的五份领域文件；不会声称已加载它们。用户可选提供权威资料，验证路径、内容与适用范围后再引用。示例中的数字、业务规则和技术选型仅用于讨论，须区分已确认事实与待确认建议。相关外部技能只有在实际可用且用户授权时使用，不自动进入设计或安装流程。
+
 ---
 
 ## 使用方式
@@ -126,7 +128,7 @@ PRD 侧重业务需求，设计文档侧重技术实现。设计文档应与 PRD
 
 - [prompt.md](./prompt.md) - 详细提示词
 - [templates/prd-template.md](./templates/prd-template.md) - PRD 模板
-- [SKILL-ROUTING.md](../SKILL-ROUTING.md) - 技能路由表
+- [SKILL.md](./SKILL.md) - 技能边界、访谈流程与可选资料规则
 
 ---
 

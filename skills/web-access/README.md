@@ -25,7 +25,7 @@
   <a href="https://web-access.eze.is">🌐 官网</a> · <a href="https://mp.weixin.qq.com/s/rps5YVB6TchT9npAaIWKCw">📖 设计详解</a> · <a href="#安装">⚡ 快速安装</a>
 </p>
 
-AI Agent 原本的联网能力（WebSearch、WebFetch）缺少调度策略和浏览器自动化能力。这个 Agent Skill 补上的是：**联网策略 + CDP 浏览器操作 + 站点经验积累**。兼容所有支持 SKILL.md 的 Agent（Claude Code、Cursor、Gemini CLI、Codex CLI 等）。
+这个 Agent Skill 提供的是：**本地用户浏览器 CDP 操作 + 书签/历史检索 + 站点经验积累**，独立于 Chrome DevTools MCP。仅在任务需要本地浏览器登录态/交互、用户请求检索自己的书签/历史，或明确选择 web-access 时使用；普通公开搜索和抓取交给合适的工具，不要求先配置 CDP。兼容支持 SKILL.md 的 Agent（Claude Code、Cursor、Gemini CLI、Codex CLI 等）。
 
 > 推荐必读：[Web Access：一个 Skill，拉满 Agent 联网和浏览器能力](https://mp.weixin.qq.com/s/rps5YVB6TchT9npAaIWKCw) ，完整介绍了 Web-Access Skill 的开发细节与 Agent Skill 设计哲学，帮助你也能写出类似通用、高上限的 Skill
 
@@ -39,7 +39,7 @@ AI Agent 原本的联网能力（WebSearch、WebFetch）缺少调度策略和浏
 | CDP Proxy 浏览器操作 | 直连用户日常浏览器（Chrome / Edge / Chromium 系），天然携带登录态，支持动态页面、交互操作、视频截帧 |
 | 三种点击方式 | `/click`（JS click）、`/clickAt`（CDP 真实鼠标事件）、`/setFiles`（文件上传） |
 | 本地浏览器书签/历史检索 | `find-url.mjs` 跨 Chrome / Edge 查询公网搜不到的目标（内部系统）或用户访问过的页面，支持关键词/时间窗/访问频度排序 |
-| 并行分治 | 多目标时分发子 Agent 并行执行，共享一个 Proxy，tab 级隔离 |
+| 并行分治 | 多目标时分发子 Agent 并行执行，共享一个 Proxy，tab 级隔离页面目标（登录态与 Cookie 仍共享） |
 | 站点经验积累 | 按域名存储操作经验（URL 模式、平台特征、已知陷阱），跨 session 复用 |
 | 媒体提取 | 从 DOM 直取图片/视频 URL，或对视频任意时间点截帧分析 |
 
@@ -63,7 +63,7 @@ AI Agent 原本的联网能力（WebSearch、WebFetch）缺少调度策略和浏
 <details><summary>v2.4.1 更新</summary>
 
 - **跨平台支持** — 脚本从 bash 迁移到 Node.js，Windows / Linux / macOS 均可使用
-- **DOM 边界穿透** — 新增技术事实：eval 递归遍历可穿透 Shadow DOM、iframe 等选择器不可跨越的边界
+- **DOM 边界穿透** — 新增技术事实：eval 递归遍历覆盖开放（open）shadow root 与同源（same-origin）iframe 等选择器不可跨越的边界；闭合 shadow root、跨源 iframe 不保证可达
 </details>
 
 <details><summary>v2.4 更新</summary>
@@ -81,6 +81,8 @@ AI Agent 原本的联网能力（WebSearch、WebFetch）缺少调度策略和浏
 </details>
 
 ## 安装
+
+> 安装会向你的 Agent 环境写入技能文件：执行前先确认来源与目标目录，并在获得许可后选择一种方式。
 
 **方式一：npx skills 一键安装（推荐）**
 
@@ -111,7 +113,9 @@ git clone https://github.com/eze-is/web-access ~/.claude/skills/web-access
 
 ## 前置配置（CDP 模式）
 
-CDP 模式需要 **Node.js 22+** 和浏览器（Chrome / Edge）开启远程调试：
+使用 **Node.js 22+**。只查询书签/历史时无需 CDP；历史查询另需 PATH 中的 **sqlite3 CLI**，仅书签查询无需 sqlite3（用 `--only bookmarks`）。仅在用户请求或授权时按浏览器、关键词、时间范围检索，不读取与任务无关的历史。
+
+CDP 交互还需要浏览器（Chrome / Edge）开启远程调试，由用户授权并完成以下设置：
 
 1. 在你想用的浏览器地址栏打开对应 inspect 页面：
    - Chrome：`chrome://inspect/#remote-debugging`
@@ -120,7 +124,7 @@ CDP 模式需要 **Node.js 22+** 和浏览器（Chrome / Edge）开启远程调�
 
 ### 浏览器偏好（config.env）
 
-skill 长期偏好保存在 `${CLAUDE_SKILL_DIR}/config.env`（首次运行自动从 `config.env.template` 创建，gitignored）：
+skill 长期偏好保存在 `${CLAUDE_SKILL_DIR}/config.env`（首次运行从 [templates/config.env.template](templates/config.env.template) 创建，gitignored）。运行检查可能创建该文件、启动 Proxy 或触发浏览器授权，须事先获得许可。只有用户要求保存偏好时才改 `WEB_ACCESS_BROWSER`，不要修改浏览器 profile 配置：
 
 ```bash
 # 留空 = 每次启动都询问偏好；设值 = 固定使用该浏览器
@@ -135,17 +139,15 @@ WEB_ACCESS_BROWSER=edge
 node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs" --browser chrome
 ```
 
-**切换浏览器**（proxy 已连接旧的）：
+**切换浏览器**（proxy 已连接旧的）：先核对监听端口、脚本绝对路径和 PID，并确认是否被其他会话共享。仅在用户授权且不影响其他会话时停止该精确 PID；不能确定归属时请用户处理，不按进程名批量终止。之后用 `--browser <chrome|edge>` 重新检查，不擅自保存偏好。
 
-```bash
-pkill -f cdp-proxy.mjs && node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs"
-```
+显式浏览器选择不匹配时不会回退到其他浏览器。独立 9222 调试实例可用不代表选中的 Chrome/Edge 已被发现，不能仅凭此判定发现逻辑失效。
 
-环境检查（Agent 运行时会自动完成前置检查，无需手动执行）：
+环境检查（仅在已授权的 CDP 任务中运行；不是无副作用的只读检查）：
 
 ```bash
 node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs"
-# $CLAUDE_SKILL_DIR 是 skill 加载时自动设置的环境变量
+# $CLAUDE_SKILL_DIR 由宿主提供时可直接使用；未提供时先解析本 skill 的实际安装目录再替换
 # 手动运行请替换为实际路径，如 ~/.claude/skills/web-access
 ```
 
@@ -154,7 +156,7 @@ node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs"
 Proxy 通过 WebSocket 直连浏览器（兼容 `chrome://inspect` / `edge://inspect` 方式，无需命令行参数启动），提供 HTTP API：
 
 ```bash
-# 启动（Agent 会自动管理 Proxy 生命周期，无需手动启动）
+# 启动（仅在本任务已获授权后执行；Proxy 常驻且可能被其他会话共享，Agent 代管其生命周期，无需手动启动）
 node "${CLAUDE_SKILL_DIR}/scripts/cdp-proxy.mjs" &
 
 # 页面操作
@@ -166,7 +168,7 @@ curl -s -X POST "http://localhost:3456/setFiles?target=ID" \
   -d '{"selector":"input[type=file]","files":["/path/to/file.png"]}'        # 文件上传
 curl -s "http://localhost:3456/screenshot?target=ID&file=/tmp/shot.png"     # 截图
 curl -s "http://localhost:3456/scroll?target=ID&direction=bottom"           # 滚动
-curl -s "http://localhost:3456/close?target=ID"                             # 关闭 tab
+curl -s "http://localhost:3456/close?target=ID"                             # 关闭 tab（只关闭本任务创建的 tab）
 curl -s "http://localhost:3456/health"                                      # 查看状态（含 managedTabs 数量）
 ```
 
@@ -174,17 +176,18 @@ Proxy 会自动追踪通过 `/new` 创建的 tab，闲置 15 分钟后自动关�
 
 ## ⚠️ 使用前提醒
 
-通过浏览器自动化操作社交平台（如小红书）存在账号被平台限流或封禁的风险。**强烈建议使用小号进行操作。**
+通过浏览器自动化操作社交平台存在限流或封禁风险；防护、GUI 交互和更换账号均不保证安全。操作前说明风险并遵守网站限制，不用替代账号规避处罚。登录、上传和提交须取得明确授权。
 
 ## 使用
 
-安装后直接让 Agent 执行联网任务，skill 自动接管：
+在以下场景使用，不接管全部联网任务：
 
-- "帮我搜索 xxx 最新进展"
-- "读一下这个页面：[URL]"
-- "去小红书搜索 xxx 的账号"
-- "帮我在创作者平台发一篇图文"
-- "同时调研这 5 个产品的官网，给我对比摘要"
+- "用我已登录的本地浏览器查看这个后台页面"
+- "从我的 Edge 书签里找这个系统地址"
+- "在我最近 7 天的历史里找上次看的文章"
+- "使用 web-access 操作这个动态页面"
+
+登录、上传、发布、提交和删除等动作须有明确授权，Agent 继续执行不代表用户同意；只读请求不授权写操作。普通公开网页搜索/抓取无需 CDP。
 
 ## 设计哲学
 

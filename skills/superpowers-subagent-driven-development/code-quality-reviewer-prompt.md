@@ -4,17 +4,23 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
 
-**Only dispatch after spec compliance review passes.**
+**Only dispatch after spec compliance review passes and delegation is permitted.** Otherwise perform a disclosed separate review pass.
+
+Use [the bundled review template](../superpowers-requesting-code-review/code-reviewer.md), adapting its commit-range instructions to the captured scope below. Never create a commit merely to review uncommitted work.
 
 ```
-Task tool (general-purpose):
-  Use template at requesting-code-review/code-reviewer.md
-
+Available permitted review tool:
   DESCRIPTION: [task summary, from implementer's report]
-  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
-  BASE_SHA: [commit before task]
-  HEAD_SHA: [current commit]
+  PLAN_OR_REQUIREMENTS: Task N from [plan source]
+  REVIEW_MODE: [WIP or committed]
+  BASE_SHA: [immutable base commit]
+  HEAD_SHA: [pinned commit for committed mode; not a WIP snapshot]
+  SNAPSHOT: [same captured diff, contextual files, exclusions, and WIP untracked
+             contents used for spec review; include pre-task content when shared
+             WIP already existed so only this task's changes are attributed to it]
 ```
+
+For WIP capture `git diff HEAD` plus `git status --short`, explicitly read in-scope untracked files, and check for changes before reporting. For committed mode use pinned `base...HEAD` and commit content; exclude local WIP. Do not substitute an empty commit diff for uncommitted edits.
 
 **In addition to standard code quality concerns, the reviewer should check:**
 - Does each file have one clear responsibility with a well-defined interface?

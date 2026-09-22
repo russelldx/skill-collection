@@ -117,11 +117,55 @@ Claude Code、Qoder、Cursor、Codex、Gemini CLI 等宿主应分别按其当前
 
 Windows 环境下，若客户端不能直接解析 `npx`，按该客户端文档使用命令包装或可执行文件路径；不要在没有错误证据时修改全局 PATH 或系统设置。
 
+### Qoder CLI 与 IDE 的区别（2026-09-22 核对）
+
+当前 CLI 官方文档列出的覆盖顺序为：用户 `~/.qoder/settings.json` → 项目 `.qoder/settings.json` → 项目 `.mcp.json` → 项目 `.qoder/settings.local.json` → 命令行配置。同名服务会被后项覆盖，插件也可提供服务；项目配置需要批准。`~/.qoder/mcp.json` 不在该 CLI 文档的发现列表中。
+
+Qoder CLI 1.0.17 的发布说明明确修复 MCP `${VAR}` 展开；本机检查版本为 1.1.60，但进程中没有 `FIRECRAWL_API_KEY`。占位符不能代替凭据。IDE 文档仅确认 Settings → MCP → My Servers 的配置入口，未证明它会读取本仓库文件或采用相同插值规则。
+
+Firecrawl 官方 Windows 说明使用已定位的 `npx.cmd`；Chrome DevTools 故障排查提供 `cmd /c npx` 包装。Node 的 `.cmd` 启动限制意味着仅换扩展名并非通用修复。按宿主验证，不自动更改 PATH、用户设置或客户端权限。`qodercli mcp list`、`/mcp` 可检查配置和连接，但原始输出未经保证脱敏，不能直接贴入报告。
+
+## 可复现 smoke 检查
+
+`mcp-smoke.py` 需要 Python 3.11+ 和已有 MCP SDK（本轮为 1.27.1），默认只预检指定配置中的一个服务，不安装依赖、不读取用户配置。只有 `--connect` 才启动该服务或连接指定端点；这不是服务代码沙箱，执行前仍须审阅来源。
+
+```bash
+python -B mcp-smoke.py --config .mcp.json --server firecrawl
+python -B mcp-smoke.py --config .mcp.json --server chrome-devtools
+```
+
+安全检查器拒绝 `npx/npm/uvx` 和 shell/batch 启动器，避免隐式下载；因此示例中的 `npx` 会得到 `unsafe_launcher`，这是检查器策略，不是已经证实 Qoder 无法启动。要检验已有安装，显式提供 `--command` 和完整 `--command-args` JSON 数组（例如已核实的 Node 可执行文件及服务 JS 入口），再加 `--connect --require-tool list_pages`。不要照抄其他机器的缓存路径。
+
+协议检查包含 initialize、分页工具清单、结构性 schema 检查、必需工具、有限超时和清理；不是完整 JSON Schema 验证。可选真实调用仅允许 `--call list_pages --arguments '{}'` 或 `list_corpora`，须同时指定 `--connect`。返回结果检查 `isError` 和错误文本，只输出安全元数据；不输出工具内容、令牌、headers 或私有端点。单次 `${NAME}` 展开由检查器完成，不能冒充宿主的插值验证。
+
+启动覆盖的结果标记为 `project_config_with_launch_override`，不能据此宣称原始 `npx` 配置已在宿主加载。测试命令：
+
+```bash
+python -B -W error -m unittest discover -s tests -p test_mcp_smoke.py -v
+```
+
+### 本轮实测结果
+
+| 证据链 | 结果 | 限制 |
+|---|---|---|
+| 当前 Chrome DevTools MCP | 列页、自建空白页写入测试文字、读取、截图、关闭均成功 | 原有页面未操作；不等于 web-access Proxy 实测 |
+| 已安装 Chrome MCP 1.9.0 + Python SDK | 显式 Node 入口 initialize、29 个工具 schema、必需 `list_pages`、清理通过 | 关闭此次进程的使用统计与 CrUX；未运行 npx，未验证原样配置发现 |
+| Firecrawl CLI 1.16.0 | 认证、额度检查、一次官方 MCP 文档抓取成功，退出码 0 | 消耗额度的单页操作；不代表批量抓取或交互已验收 |
+| 当前 Firecrawl MCP | 额度查询返回 HTTP 401 | 未继续付费抓取，需用户核对该服务认证；未转移 CLI 凭据 |
+| 仓库 Firecrawl 示例 | `missing_environment` | 当前进程无 API Key，未改本机配置 |
+| 当前 claude-mem | 哨兵 search / list_corpora 均 `fetch failed`；小型 Python 源文件 outline 无法解析 | 工具可见不等于 worker/AST 可用；未创建语料库、prime 或写入记忆 |
+
 ## 官方资料
 
 - [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp)
 - [连接已有 Chrome](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/advanced-usage.md)
 - [Firecrawl CLI](https://github.com/firecrawl/cli)
 - [claude-mem](https://github.com/thedotmack/claude-mem)
+- [Qoder CLI MCP 配置](https://docs.qoder.com/cli/mcp-reference.md)
+- [Qoder IDE MCP](https://docs.qoder.com/user-guide/chat/model-context-protocol.md)
+- [Qoder CLI 发布说明](https://docs.qoder.com/release-notes/qoder-cli.md)
+- [Firecrawl 本地 MCP](https://docs.firecrawl.dev/mcp-server/local)
+- [Chrome DevTools 启动排障](https://raw.githubusercontent.com/ChromeDevTools/chrome-devtools-mcp/main/docs/troubleshooting.md)
+- [Node.js Windows 子进程限制](https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows)
 
 依赖版本、认证能力和客户端格式可能变化；这些说明不替代目标环境中的实际连接与功能验证。

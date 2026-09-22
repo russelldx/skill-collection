@@ -28,5 +28,11 @@ To write any internal communication:
 
 If the communication type doesn't match any existing guideline, ask for clarification or more context about the desired format.
 
+## Scope and authorization
+
+- Gather only from sources the user has approved, and only for the audience and time period being written for. Do not sweep all connected tools or company-wide channels just because access exists.
+- Drafting a communication does not authorize posting or sending it. Publishing to a channel, sending email, or otherwise distributing the result requires the user's explicit approval of the destination, content, and audience.
+- Redact private or need-to-know information; when a source's use is unclear, ask before including it.
+
 ## Keywords
 3P updates, company newsletter, company comms, weekly update, faqs, common questions, updates, internal comms

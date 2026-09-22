@@ -17,17 +17,22 @@ PYTHONUTF8=1 python ~/.qoder/skills/anthropic-docx/scripts/office/validate.py <�
 
 ```bash
 PYTHONUTF8=1 python -c "
-import zipfile,re,hashlib,os
-docx=r'<输出.docx>'; base=r'<工作目录>'; imgs=['<内嵌图相对路径1>','<相对路径2>']
-z=zipfile.ZipFile(docx); d=z.read('word/document.xml').decode('utf8')
+import zipfile,re
+docx=r'<输出.docx>'; imgs=['<内嵌图相对路径1>','<相对路径2>']
+with zipfile.ZipFile(docx) as z:
+    d=z.read('word/document.xml').decode('utf8')
 print('drawings:',d.count('<w:drawing>'),'期望',len(imgs))
 print('extents:',set(re.findall(r'cx=\"(\d+)\" cy=\"(\d+)\"',d)))  # cx 应 <= 5731686 EMU（正文宽 6.27in）
-def sha(p): return hashlib.sha1(open(p,'rb').read()).hexdigest()
-media={os.path.basename(n):n for n in z.namelist() if n.startswith('word/media/')}
-for p in imgs:
-    h=sha(os.path.join(base,p)); print(p,'->',('OK' if h in media else 'MISSING'))
 "
 ```
+
+图片一致性使用随包脚本；`SKILL_DIR` 为 course-assignment 的实际绝对目录：
+
+```bash
+PYTHONUTF8=1 python "$SKILL_DIR/scripts/verify_media.py" "<输出.docx>" "<源图1绝对路径>" "<源图2绝对路径>"
+```
+
+脚本对 `z.read(word/media/*)` 的实际字节建立 SHA1 集合（不以文件名为键），逐张核对源图，打印 `checked=N missing=N`；缺图退出 1，读取失败退出 2，全部匹配退出 0。零退出码只证明列出的源图字节存在，不证明绘图引用次数、布局或其他结构检查通过。
 
 必查清单：
 
@@ -57,4 +62,4 @@ for p in imgs:
 
 1. 用户给出学号/姓名 → 替换内容源全部占位符 + 重命名文件 → 重生成 → 重跑第 1、2 层
 2. 交付物数量与题面要求一致（一个文档就别附 zip）
-3. 截止时间还剩多少：不足 1 小时优先提交，校验瑕疵留备注，不要为完美卡点
+3. 截止不足 1 小时时及时告知用户准备情况及未通过项；平台上传、粘贴、提交仍须明确许可，不能因临近截止自行操作。没有提交证据始终标记 `submission_status: UNKNOWN`，截止已过也不推断已提交或关闭待办。

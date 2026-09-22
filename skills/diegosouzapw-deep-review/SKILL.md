@@ -372,11 +372,12 @@ Based on selected aspects (including any auto-detected platform aspects from Pha
 
 ### Phase 3: Create Results Directory and Launch Background Agents
 
-1. **Create results directory**:
+1. **Create results directory** (portable unique suffix; `uuidgen` may be absent):
    ```bash
-   mkdir -p /tmp/deep-review-$(uuidgen | tr '[:upper:]' '[:lower:]')/
+   REVIEW_DIR="${TMPDIR:-/tmp}/deep-review-$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
+   mkdir -p "$REVIEW_DIR"
    ```
-   Store the path as `REVIEW_DIR`.
+   Store the path as `REVIEW_DIR`. This directory is temporary: after the report is delivered, delete it (`rm -rf "$REVIEW_DIR"`) unless the user asked to retain the evidence, in which case move/copy it to a user-authorized location and say where it was kept. The shipped `scripts/standalone-review.sh` uses the same `/tmp/deep-review-<date>-<random>` convention with its own process cleanup.
 
 2. **Spawn all analysis agents in parallel as background tasks**:
    Use a **single message** with multiple Task tool calls (one per agent) so they all launch concurrently:
@@ -546,14 +547,16 @@ If you encounter errors during analysis (e.g., files not found, permission issue
 - Platform reviewers are automatically included when relevant — no need to specify them manually
 - Use `mobile`, `ts`, or explicit platform names (e.g., `ios`, `python`) to force specific platform reviewers
 - Create follow-up tickets for pre-existing issues outside the PR's scope if discovered during review
-- Individual agent findings are available in `/tmp/deep-review-*/` for detailed inspection
+- Individual agent findings are available under `REVIEW_DIR` (`/tmp/deep-review-<date>-<random>/`) for detailed inspection until the temporary directory is cleaned up
 - Agents run as background tasks (not tmux-style teams) — the primary session's context stays minimal
 
 ## Headless Mode
 
 Run deep-review non-interactively from scripts, CI/CD pipelines, or Makefiles.
 
-### Quick Invocation
+**Host note:** the examples below use the Claude Code CLI (`claude -p`, `--allowedTools`, `--output-format`), so they are specific to that host. On any other host, run that host's CLI in its non-interactive mode with an equivalent `/deep-review` invocation, grant only the tool approvals the host requires, and adjust flag names accordingly; do not assume `claude` exists.
+
+### Quick Invocation (Claude Code example)
 
 ```bash
 # Run a core review on the current PR branch
@@ -606,7 +609,7 @@ CONFIDENCE_THRESHOLD=90 ./scripts/standalone-review.sh full
 REVIEW_MODEL=sonnet ./scripts/standalone-review.sh
 ```
 
-See [`scripts/standalone-review.sh`](./scripts/standalone-review.sh) for the full script. Each agent runs as a fully independent Claude process — no shared context, no polling, no orchestration overhead.
+See [`scripts/standalone-review.sh`](./scripts/standalone-review.sh) for the full script. Each agent runs as a fully independent Claude Code process (the script requires the `claude` CLI on PATH; other hosts must adapt it to their own non-interactive CLI) — no shared context, no polling, no orchestration overhead.
 
 #### Pipeline Phases
 

@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Break a plan into independently-grabbable issues using vertical slices (tracer bullets).
 
-The issue tracker and triage label vocabulary should have been provided to you — run `/setup-matt-pocock-skills` if not.
+Use an existing `docs/agents/issue-tracker.md`, user-provided tracker details, and verified label vocabulary if available. No setup command is bundled or required. If the source, destination, or labels are missing, ask for them or draft from verified local/conversation material without publishing. Do not invent configuration or install a setup skill. Publishing needs explicit user authorization for the destination and issues; approval of a breakdown alone is not permission to create remote records.
 
 ## Process
 
@@ -52,7 +52,7 @@ Iterate until the user approves the breakdown.
 
 ### 5. Publish the issues to the issue tracker
 
-For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with the correct triage label unless instructed otherwise.
+For each approved slice, publish a new issue only when the user's authorization includes remote issue creation at the verified destination. Use the template below and only existing, verified triage labels. If publication or destination is unconfirmed, return the drafts without creating records. Unresolved requirements remain blocked, not automatically ready for AFK agents.
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
 

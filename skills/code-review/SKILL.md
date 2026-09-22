@@ -1,32 +1,34 @@
 ---
 name: code-review
-description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".
+description: Review committed changes since a pinned base or work-in-progress changes along two axes — repository Standards and originating Spec. Use parallel reviewers when permitted and available, otherwise disclosed separate passes over the same snapshot. Use for branch, PR, WIP, or "review since X" requests.
 ---
 
-Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
+Two-axis review of an explicitly chosen change scope:
 
 - **Standards** — does the code conform to this repo's documented coding standards?
 - **Spec** — does the code faithfully implement the originating issue / PRD / spec?
 
-Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
+Both axes use the same captured input. Run independent parallel reviews only when delegation is permitted and tools are available; otherwise perform two separate passes and disclose that they were not independent agents. A review does not authorize commits, uploads, fixes, or changes to tracker/tool configuration.
 
-The issue tracker should have been provided to you — run `/setup-matt-pocock-skills` if `docs/agents/issue-tracker.md` is missing.
+Use `docs/agents/issue-tracker.md` if present. If absent, request the tracker/spec source or use a user-provided or verified local source. No setup command is bundled or required; never invoke a missing setup skill or invent tracker configuration.
 
 ## Process
 
-### 1. Pin the fixed point
+### 1. Choose scope and pin immutable inputs
 
-Whatever the user said is the fixed point — a commit SHA, branch name, tag, `main`, `HEAD~5`, etc. If they didn't specify one, ask for it.
+- **WIP / working-tree review:** use `git diff HEAD` to include staged plus unstaged tracked changes, and `git status --short` to identify untracked paths. Expand untracked directories and explicitly read each in-scope untracked file with the host's read tool; diff alone does not include them. Pin `BASE_SHA=$(git rev-parse --verify 'HEAD^{commit}')` and capture the equivalent `git diff "$BASE_SHA"` output once. Do not use three-dot for WIP. Report unreadable/binary/excluded files and staged/unstaged changes that cancel out in the net diff.
+- **Committed branch / PR / "since X" review:** resolve `BASE_SHA=$(git rev-parse --verify '<base>^{commit}')`, `HEAD_SHA=$(git rev-parse --verify 'HEAD^{commit}')`, and `MERGE_BASE_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA")`. The intended command is `git diff <base>...HEAD`; execute the pinned equivalent `git diff "$BASE_SHA"..."$HEAD_SHA"` and capture `git log "$BASE_SHA".."$HEAD_SHA" --oneline`. If the base is unknown, ask rather than assuming main/master.
+- **Scope conflict:** untracked, staged, and unstaged files are not part of a committed comparison. Report their presence with `git status --short` but exclude them unless the user also requests WIP; in that case produce a separately labeled WIP review. Do not silently add local files to a PR review or drop them from WIP. If intent is ambiguous, state/confirm the chosen mode before reviewing.
 
-Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
+Pass the same immutable base SHA, pinned head/merge-base where applicable, captured diff, commit list, and WIP untracked contents to both reviews. WIP is mutable: capture contents once, note the capture time, and check status/diff/content hashes again before reporting. If they changed, invalidate the affected review or label it stale; never mix snapshots. For committed mode read file context from the pinned commit, not a dirty working tree.
 
-Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and the diff is non-empty. A bad ref or empty diff should fail here — not inside two parallel sub-agents.
+Validate refs and scope before dispatch. An empty tracked diff with in-scope untracked files is not an empty WIP review. If the entire selected scope is empty, report no changes rather than spawning reviews.
 
 ### 2. Identify the spec source
 
 Look for the originating spec, in this order:
 
-1. Issue references in the commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.) — fetch via the workflow in `docs/agents/issue-tracker.md`.
+1. Issue references in the selected commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.) — fetch using the verified tracker source and permitted host tools; use `docs/agents/issue-tracker.md` only if it exists.
 2. A path the user passed as an argument.
 3. A PRD/spec file under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
 4. If nothing is found, ask the user where the spec is. If they say there isn't one, the **Spec** sub-agent will skip and report "no spec available".
@@ -55,19 +57,19 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 - **Middle Man** — a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest** — a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
 
-### 4. Spawn both sub-agents in parallel
+### 4. Run both review axes
 
-Send a single message with two `Agent` tool calls. Use the `general-purpose` subagent for both.
+If the host permits delegation, send two parallel review calls using the available agent tools. Otherwise run separate Standards and Spec passes yourself. In either case use the identical captured inputs from step 1, not independently resolved moving refs.
 
 **Standards sub-agent prompt** — include:
 
-- The full diff command and commit list.
+- The selected mode, immutable base SHA and any pinned head/merge-base SHA, captured diff and commit list, plus WIP untracked paths/contents and exclusions. Review this snapshot; do not rerun moving refs.
 - The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full — the sub-agent has no other access to it.
 - The brief: "Report — per file/hunk where relevant — (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls — documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
 
 **Spec sub-agent prompt** — include:
 
-- The diff command and commit list.
+- The identical selected mode, immutable SHA values, captured diff/commit list, and WIP untracked contents/exclusions supplied to the Standards review.
 - The path or fetched contents of the spec.
 - The brief: "Report: (a) requirements the spec asked for that are missing or partial; (b) behaviour in the diff that wasn't asked for (scope creep); (c) requirements that look implemented but where the implementation looks wrong. Quote the spec line for each finding. Under 400 words."
 

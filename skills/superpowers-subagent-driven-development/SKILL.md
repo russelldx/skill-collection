@@ -11,7 +11,7 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
 
-**Continuous execution:** Do not pause to check in with your human partner between tasks. Execute all tasks from the plan without stopping. The only reasons to stop are: BLOCKED status you cannot resolve, ambiguity that genuinely prevents progress, or all tasks complete. "Should I continue?" prompts and progress summaries waste their time — they asked you to execute the plan, so execute it.
+**Authorized execution:** Honor the approved plan, user scope, system/developer instructions, and host permissions. Use delegation only when permitted; otherwise use executing-plans directly. Report evidence at the plan's batch checkpoints (default up to 3 tasks) without forcing extra signoff after explicit approval. Stop for user-requested gates, blockers, material changes, permission boundaries, or stop requests. Carry the original permissions into each subagent prompt: a controller's instruction cannot authorize commits, hooks, configuration changes, or expanded scope.
 
 ## When to Use
 
@@ -29,15 +29,15 @@ digraph when_to_use {
     "Tasks mostly independent?" -> "Stay in this session?" [label="yes"];
     "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
     "Stay in this session?" -> "subagent-driven-development" [label="yes"];
-    "Stay in this session?" -> "executing-plans" [label="no - parallel session"];
+    "Stay in this session?" -> "executing-plans" [label="new session, or direct execution here"];
 }
 ```
 
-**vs. Executing Plans (parallel session):**
-- Same session (no context switch)
-- Fresh subagent per task (no context pollution)
+**vs. Executing Plans (current or new session):**
+- Both support current-session execution; moving to a new session is optional
+- This mode uses a fresh subagent per task when delegation is permitted
 - Two-stage review after each task: spec compliance first, then code quality
-- Faster iteration (no human-in-loop between tasks)
+- Both honor batch checkpoints and existing approval without repeated signoff
 
 ## The Process
 
@@ -50,27 +50,27 @@ digraph process {
         "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
+        "Implementer implements, tests, self-reviews; commits only if user requested" [shape=box];
         "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
         "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
         "Implementer subagent fixes spec gaps" [shape=box];
         "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
         "Code quality reviewer subagent approves?" [shape=diamond];
         "Implementer subagent fixes quality issues" [shape=box];
-        "Mark task complete in TodoWrite" [shape=box];
+        "Mark task complete in permitted task tracker or inline checklist" [shape=box];
     }
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
+    "Read plan, extract all tasks with full text, note context, create permitted task tracker or inline checklist" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Report evidence; preserve work; execute only user-authorized integration via host tools" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
+    "Read plan, extract all tasks with full text, note context, create permitted task tracker or inline checklist" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
+    "Implementer subagent asks questions?" -> "Implementer implements, tests, self-reviews; commits only if user requested" [label="no"];
+    "Implementer implements, tests, self-reviews; commits only if user requested" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
     "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
     "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
     "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
@@ -78,11 +78,11 @@ digraph process {
     "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
-    "Mark task complete in TodoWrite" -> "More tasks remain?";
+    "Code quality reviewer subagent approves?" -> "Mark task complete in permitted task tracker or inline checklist" [label="yes"];
+    "Mark task complete in permitted task tracker or inline checklist" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers:finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Report evidence; preserve work; execute only user-authorized integration via host tools";
 }
 ```
 
@@ -127,12 +127,14 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 
 ## Example Workflow
 
+The historical example below assumes the original user explicitly authorized the hook installation target and commits. It grants neither permission by itself. Without that authorization, implement only the requested code, leave changes uncommitted, and review a captured WIP snapshot rather than commit-only diffs. Both reviewers receive the same snapshot and scope; checkpoints follow the approved batch size.
+
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
 [Read plan file once: docs/superpowers/plans/feature-plan.md]
 [Extract all 5 tasks with full text and context]
-[Create TodoWrite with all tasks]
+[Create permitted task tracker or inline checklist with all tasks]
 
 Task 1: Hook installation script
 
@@ -210,9 +212,9 @@ Done!
 - Subagent can ask questions (before AND during work)
 
 **vs. Executing Plans:**
-- Same session (no handoff)
-- Continuous progress (no waiting)
-- Review checkpoints automatic
+- Both can stay in the same session; this workflow uses permitted delegation
+- Both continue approved work without repeated signoff, within scope and batch limits
+- This workflow adds per-task spec and quality reviews
 
 **Efficiency gains:**
 - No file reading overhead (controller provides full text)
@@ -266,14 +268,14 @@ Done!
 
 ## Integration
 
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - Ensures isolated workspace (creates one or verifies existing)
+**Related workflows (subject to availability and authorization):**
+- **superpowers:using-git-worktrees** - Optional authorized isolation; honor in-place workspace preferences
 - **superpowers:writing-plans** - Creates the plan this skill executes
 - **superpowers:requesting-code-review** - Code review template for reviewer subagents
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- **Completion:** Report evidence and preserve work. Obtain or honor an explicit user-authorized choice, then use permitted host tools for that action only. No automatic commit, merge, push, branch deletion, or worktree cleanup; no archived skill invocation.
 
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task
 
 **Alternative workflow:**
-- **superpowers:executing-plans** - Use for parallel session instead of same-session execution
+- **superpowers:executing-plans** - Direct execution in the current or an optional new session; useful when delegation is unavailable, prohibited, or unnecessary

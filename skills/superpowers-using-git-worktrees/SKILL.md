@@ -52,7 +52,7 @@ Honor any existing declared preference without asking. If the user declines cons
 
 The user has asked for an isolated workspace (Step 0 consent). Do you already have a way to create a worktree? It might be a tool with a name like `EnterWorktree`, `WorktreeCreate`, a `/worktree` command, or a `--worktree` flag. If you do, use it and skip to Step 3.
 
-Native tools handle directory placement, branch creation, and cleanup automatically. Using `git worktree add` when you have a native tool creates phantom state your harness can't see or manage.
+Native tools manage directory placement and branch creation consistently with the host. Cleanup is not automatic authorization: preserve work unless the user explicitly requests removal and the host verifies ownership/state. Using `git worktree add` when a native tool is available can create state the harness cannot manage.
 
 Only proceed to Step 1b if you have no native worktree tool available.
 
@@ -90,7 +90,7 @@ Follow this priority order. Explicit user preference always beats observed files
 git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/dev/null
 ```
 
-**If NOT ignored:** Add to .gitignore, commit the change, then proceed.
+**If NOT ignored:** Explain the issue and ask before changing `.gitignore`; commit only if explicitly requested. Alternatively use a user-authorized external location or work in place. Do not change configuration or create a commit as an automatic prerequisite.
 
 **Why critical:** Prevents accidentally committing worktree contents to repository.
 
@@ -113,22 +113,25 @@ cd "$path"
 
 ## Step 3: Project Setup
 
-Auto-detect and run appropriate setup:
+Keep setup detection read-only. Check what the project needs, then either reuse dependencies that are already present or report what is missing:
 
 ```bash
 # Node.js
-if [ -f package.json ]; then npm install; fi
+[ -f package.json ] && echo "node: package.json present"
+[ -d node_modules ] || echo "node: node_modules missing"
 
 # Rust
-if [ -f Cargo.toml ]; then cargo build; fi
+[ -f Cargo.toml ] && echo "rust: Cargo.toml present"
 
 # Python
-if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-if [ -f pyproject.toml ]; then poetry install; fi
+[ -f requirements.txt ] && echo "python: requirements.txt present"
+[ -f pyproject.toml ] && echo "python: pyproject.toml present"
 
 # Go
-if [ -f go.mod ]; then go mod download; fi
+[ -f go.mod ] && echo "go: go.mod present"
 ```
+
+If dependencies are already present, reuse them. If they are missing, report exactly what is missing and ask for explicit user approval before running any install command (`npm install`, `cargo build`, `pip install -r`, `poetry install`, `go mod download`). Never install automatically.
 
 ## Step 4: Verify Clean Baseline
 
@@ -164,7 +167,7 @@ Ready to implement <feature-name>
 | Both exist | Use `.worktrees/` |
 | Neither exists | Check instruction file, then default `.worktrees/` |
 | Global path exists | Use it (backward compat) |
-| Directory not ignored | Add to .gitignore + commit |
+| Directory not ignored | Ask before changing ignore rules; no automatic commit |
 | Permission error on create | Sandbox fallback, work in place |
 | Tests fail during baseline | Report failures + ask |
 | No package.json/Cargo.toml | Skip dependency install |
@@ -211,5 +214,5 @@ Ready to implement <feature-name>
 - Prefer native tools over git fallback
 - Follow directory priority: existing > global legacy > instruction file > default
 - Verify directory is ignored for project-local
-- Auto-detect and run project setup
+- Keep setup detection read-only; install only with explicit user approval
 - Verify clean test baseline

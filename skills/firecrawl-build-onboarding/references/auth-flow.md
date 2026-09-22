@@ -1,6 +1,6 @@
 # Auth Flow
 
-Use this browser flow when the user does not already have a Firecrawl API key.
+Use this browser flow only when the user explicitly authorizes Firecrawl account sign-in and credential setup for the named project. A missing key alone does not authorize login, account creation, or consent submission. Let the human perform those browser steps; never treat agent continuation as consent. Do not expose API keys or the code verifier in chat/logs, or reuse another account's session.
 
 ## Step 1: Generate auth parameters
 
@@ -29,11 +29,9 @@ Content-Type: application/json
 
 Responses:
 
-- `{"status":"pending"}` - continue polling
-- `{"status":"complete","apiKey":"fc-...","teamName":"..."}`
+- `{"status":"pending"}` - continue polling within the flow's documented interval and expiry; honor user cancellation and terminal errors, and stop after expiry instead of silently starting a new login session
+- `{"status":"complete","apiKey":"fc-...","teamName":"..."}` - treat the key as a secret and keep it out of chat, logs, and status output (including the code verifier)
 
 ## Step 4: Save the key
 
-```bash
-echo "FIRECRAWL_API_KEY=fc-..." >> .env
-```
+Use the project's approved secret destination from [project setup](project-setup.md). Have the user enter the value securely; do not echo it into shell history or append duplicate keys blindly. Confirm the project/environment, preserve unrelated configuration, and verify `.env` is ignored if that is the chosen destination. Account authorization does not grant permission to publish, upload other files, or copy credentials to other environments.

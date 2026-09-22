@@ -11,9 +11,16 @@ styles (fonts, heading styles, margins, header/footer) and pours your Markdown
 content into them. The reference doc's *body text is ignored* — only its styles
 and section setup are used.
 
+Use an optional user-supplied template; set `TEMPLATE` to its actual absolute
+path. No business DOCX templates are bundled with this skill.
+
 ```bash
-python scripts/md_to_docx.py body.md out.docx --reference templates/report-standard.docx
+python -c 'import pathlib,sys; sys.exit(0 if pathlib.Path(sys.argv[1]).is_file() else "Template not found")' "$TEMPLATE" && \
+  python scripts/md_to_docx.py body.md out.docx --reference "$TEMPLATE"
 ```
+
+Without a template, run `python scripts/md_to_docx.py body.md out.docx`
+(no `--reference`), or use the Node renderer/docx-js route in SKILL.md.
 
 Best for: reports, memos, letters where the structure comes from your Markdown
 and you just want consistent house styling.
@@ -24,15 +31,19 @@ For documents with a fixed layout and a few variable fields (contracts, cover
 pages), put literal `{{token}}` placeholders in the template and fill them:
 
 ```bash
-python scripts/fill_template.py templates/contract.docx out.docx \
+python -c 'import pathlib,sys; sys.exit(0 if pathlib.Path(sys.argv[1]).is_file() else "Template not found")' "$TEMPLATE" && \
+  python scripts/fill_template.py "$TEMPLATE" out.docx \
     --set title="服务采购合同" --set party_a="甲方公司" \
     --set party_b="乙方公司" --set date="2026-06-17"
 ```
 
 `fill_template.py` merges runs within each paragraph before replacing, so it
 works even when Word has split a token like `{{title}}` across multiple runs
-(a common reason naive replacement fails). It writes a new file and never
-edits the template in place.
+(a common reason naive replacement fails). Use distinct, fully resolved
+template and output paths and an approved non-overwriting output: the script
+writes to the output path you give it, so that precondition is what keeps the
+template file itself untouched — it does not enforce a no-overwrite guarantee
+on its own.
 
 ## Placeholder conventions
 
@@ -42,30 +53,23 @@ edits the template in place.
 - After filling, the script reports any **unfilled** tokens still present —
   treat that as a checklist, not a silent pass.
 
-## Shipped templates
+## Template availability
 
-| File | Layout | Typical tokens |
-|------|--------|----------------|
-| `report-standard.docx` | cover + TOC + H1–H3 + header/footer + page numbers | `{{title}}`, `{{author}}`, `{{date}}` |
-| `memo.docx` | To / From / Subject / Date block + body | `{{to}}`, `{{from}}`, `{{subject}}`, `{{date}}` |
-| `letter.docx` | letterhead + body + signature | `{{recipient}}`, `{{sender}}`, `{{date}}` |
-| `contract.docx` | numbered clauses + signature area | `{{title}}`, `{{party_a}}`, `{{party_b}}`, `{{date}}` |
-| `meeting-minutes.docx` | attendees + agenda + decisions table | `{{meeting_title}}`, `{{date}}`, `{{attendees}}` |
-
-> The repository ships these as lightweight style references. If a template is
-> absent or you need a richer design, generate one **once** with the base
-> `docx` skill (docx-js), then save it into `templates/` so future runs reuse
-> it. This is the intended way to grow the template library.
+Reports, memos, letters, contracts and minutes are possible document types,
+not shipped template files. Inspect a user-supplied template's actual styles
+and tokens before use. If the path is missing, stop template filling and offer
+the no-template route; do not silently substitute a fictitious bundled file.
 
 ## Creating a new template
 
-1. Build the document with the base `docx` skill (full control over styles,
-   header/footer, tables).
+1. If the user requests a reusable template, build the document with the base
+   `docx` skill (full control over styles, header/footer, tables).
 2. Where a field should be variable, insert a literal `{{token}}` as plain
    text in its own run.
-3. Save the `.docx` into `templates/`.
-4. Document its tokens in the table above (or in your own notes).
-5. Use it via `fill_template.py` (tokens) or `--reference` (styling).
+3. Save the `.docx` in the user's chosen output directory, not the installed skill.
+4. Explain its tokens in the delivery message.
+5. Verify the saved path exists, then use `fill_template.py` (tokens) or
+   `--reference` (styling).
 
 ## CJK templates
 

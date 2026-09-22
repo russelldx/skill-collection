@@ -21,6 +21,8 @@ A toolkit providing utilities and knowledge for creating animated GIFs optimized
 
 ## Core Workflow
 
+Run your scripts with the intended interpreter for the project environment and import the bundled modules from the installed skill's own location (its `core/` package lives next to this `SKILL.md`, not in your generated project). Run from that directory, or add it to `sys.path`. Check which dependencies are already available before installing anything.
+
 ```python
 from core.gif_builder import GIFBuilder
 from PIL import Image, ImageDraw
@@ -120,7 +122,7 @@ builder.save('out.gif', num_colors=48, optimize_for_emoji=True, remove_duplicate
 ```
 
 ### Validators (`core.validators`)
-Check if GIF meets Slack requirements:
+Check if GIF meets Slack requirements (import from the installed skill location, as above):
 ```python
 from core.validators import validate_gif, is_slack_ready
 
@@ -131,6 +133,8 @@ passes, info = validate_gif('my.gif', is_emoji=True, verbose=True)
 if is_slack_ready('my.gif'):
     print("Ready!")
 ```
+
+Only report validation results from an actual validator run. If the modules could not be imported or the validator was not executed, say the GIF is unverified rather than claiming it was checked.
 
 ### Easing Functions (`core.easing`)
 Smooth motion instead of linear:
@@ -249,6 +253,9 @@ Be creative! Combine concepts (bouncing + rotating, pulsing + sliding, etc.) and
 
 ## Dependencies
 
+Before installing, check whether these are already available in the intended interpreter's environment, and get the user's authorization for the install. Prefer an existing project virtual environment over modifying a shared/global interpreter:
+
 ```bash
-pip install pillow imageio numpy
+# Run with the intended interpreter (e.g. a project venv), after approval
+python -m pip install pillow imageio numpy
 ```

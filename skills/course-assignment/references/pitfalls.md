@@ -8,7 +8,7 @@
 - 图片 CDN `p.ananas.chaoxing.com` 防盗链：curl 直接下载得到 HTML 而非图片 → 在浏览器新标签打开原图 URL，再 take_screenshot 保存
 - 题面文本在 DOM 中完整存在，`evaluate_script` 提取即可，不必截图 OCR
 - **红线**：作业提交动作（上传/粘贴/点击提交）必须等用户明确允许；子 agent 一律禁止碰提交平台
-- **截止时刻一过 = 默认用户已自行提交**（2026-09-09 用户口径）：不要把"等放行"当未闭环事项反复追问，提交类待办打勾注明"按默认规则关闭（截止已过）"即可收尾；红线本身未放宽，agent 仍不得擅自提交
+- **截止不等于提交证据**：没有用户明确确认或平台成功回执/可核对状态时，保持 `submission_status: UNKNOWN`；截止已过也不能默认已提交、勾选关闭提交待办或按已提交归档，交付完成与提交状态分开记录。2026-09-09 口径中只保留"不再反复追问等放行"，去掉按截止推断已提交的部分
 
 ## 浏览器 / 自动化
 
@@ -28,7 +28,7 @@
 - **用户在 WPS/Word 里打开并另存过交付 docx 后，该文件即不再可信**（2026-09-05 实测）：体积和段落数会变（855950B/440 段 → 528841B/434 段，图片被重压缩），且 `word/styles.xml` 里 `w:uiPriority` 元素顺序被改坏，严格校验由 PASSED 变 FAILED。所以**内容源 md 是唯一权威**，最终版一律 `node gen_docx.cjs` 重新生成，绝不在用户另存过的 docx 上增量改
 - PowerShell 5.1 把 UTF-8 **无 BOM** 的 .ps1 按 GBK 解码，硬编码中文路径变乱码 → 脚本只用 ASCII 内容，或用 pwsh 7
 - Git Bash 会展开双引号里 PowerShell 命令的 `$var`/`$_` → 把命令写进 .ps1 用 `-File` 执行，或改用无 `$` 的写法
-- 全局 npm 包（docx）不在本地 node_modules → 运行时设 `NODE_PATH="D:\develop\Nodejs\node_global\node_modules"`
+- 全局 npm 包（docx）不在本地 node_modules → 先运行本 skill 实际路径下 `scripts/gen_docx.cjs --check-deps`；生成器会检查本地/NODE_PATH 与已有 `npm root -g`。也可由用户指定实际的 NODE_PATH；不要复制个人机器路径，不自动安装
 
 ## 文档撰写
 

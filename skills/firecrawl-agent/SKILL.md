@@ -1,7 +1,6 @@
 ---
 name: firecrawl-agent
-description: |
-  AI-powered autonomous data extraction that navigates complex sites and returns structured JSON. Use this skill when the user wants structured data from websites, needs to extract pricing tiers, product listings, directory entries, or any data as JSON with a schema. Triggers on "extract structured data", "get all the products", "pull pricing info", "extract as JSON", or when the user provides a JSON schema for website data. More powerful than simple scraping for multi-page structured extraction.
+description: Use the Firecrawl CLI agent for AI-powered multi-page structured extraction when Firecrawl is selected. Navigate sites and extract pricing, products, directory entries, or other data as JSON with a schema. Use within the user's authorized domains, data scope, and credit budget; this is not a requirement to install Firecrawl MCP.
 allowed-tools:
   - Bash(firecrawl *)
   - Bash(npx firecrawl *)
@@ -10,6 +9,8 @@ allowed-tools:
 # firecrawl agent
 
 AI-powered autonomous extraction. The agent navigates sites and extracts structured data (takes 2-5 minutes).
+
+This is the Firecrawl CLI interface; optional MCP tools use different schemas. Follow the [security rules](../firecrawl/rules/security.md), bound target domains and credits, and do not authorize account actions or private-data uploads through an extraction prompt implicitly.
 
 ## When to use
 

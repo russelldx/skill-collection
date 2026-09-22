@@ -43,11 +43,11 @@ Inform them they can answer in shorthand or dump information however works best 
 
 **If user provides a template or mentions a doc type:**
 - Ask if they have a template document to share
-- If they provide a link to a shared document, use the appropriate integration to fetch it
+- If they provide a link to a shared document, use the appropriate integration to fetch that document
 - If they provide a file, read it
 
 **If user mentions editing an existing shared document:**
-- Use the appropriate integration to read the current state
+- Confirm which document they mean, then use the appropriate integration to read its current state
 - Check for images without alt-text
 - If images exist without alt-text, explain that when others use Claude to understand the doc, Claude won't be able to see them. Ask if they want alt-text generated. If so, request they paste each image into chat for descriptive alt-text generation.
 
@@ -67,7 +67,7 @@ Advise them not to worry about organizing it - just get it all out. Offer multip
 - Point to team channels or threads to read
 - Link to shared documents
 
-**If integrations are available** (e.g., Slack, Teams, Google Drive, SharePoint, or other MCP servers), mention that these can be used to pull in context directly.
+**If integrations are available** (e.g., Slack, Teams, Google Drive, SharePoint, or other MCP servers), mention that these can be used to pull in context the user explicitly authorizes — bounded to the relevant channels, documents, and time range. Available connectors do not grant general account access.
 
 **If no integrations are detected and in Claude.ai or Claude app:** Suggest they can enable connectors in their Claude settings to allow pulling context from messaging apps and document storage directly.
 
@@ -76,8 +76,9 @@ Inform them clarifying questions will be asked once they've done their initial d
 **During context gathering:**
 
 - If user mentions team channels or shared documents:
-  - If integrations available: Inform them the content will be read now, then use the appropriate integration
-  - If integrations not available: Explain lack of access. Suggest they enable connectors in Claude settings, or paste the relevant content directly.
+  - Read only sources the user explicitly supplies for retrieval or that the authorized task covers, within the stated channel/document and time scope. A mention alone is not permission to retrieve, and available connectors do not grant blanket account access.
+  - If integrations available and retrieval is authorized: confirm what will be read, then use the appropriate integration
+  - If integrations not available or retrieval is not authorized: explain the lack of access. Suggest they enable connectors in Claude settings, or paste the relevant content directly.
 
 - If user mentions entities/projects that are unknown:
   - Ask if connected tools should be searched to learn more
@@ -299,9 +300,11 @@ Generate 5-10 questions that readers would realistically ask.
 
 ### Step 2: Setup Testing
 
+Before any external sharing, get the user's approval for the destination, the exact content, and who will be able to see it; use redacted excerpts or a local-only review when appropriate.
+
 Provide testing instructions:
 1. Open a fresh Claude conversation: https://claude.ai
-2. Paste or share the document content (if using a shared doc platform with connectors enabled, provide the link)
+2. Paste the approved content — or, if the user approves sharing a link from a shared doc platform with connectors enabled, provide that link
 3. Ask Reader Claude the generated questions
 
 For each question, instruct Reader Claude to provide:
@@ -343,7 +346,7 @@ Ask if they want one more review, or if the work is done.
 
 **If user wants final review, provide it. Otherwise:**
 Announce document completion. Provide a few final tips:
-- Consider linking this conversation in an appendix so readers can see how the doc was developed
+- Linking this conversation in an appendix is optional and requires the user's separate opt-in (it exposes the conversation to readers) — ask before including it, and confirm the destination, content, and audience
 - Use appendices to provide depth without bloating the main doc
 - Update the doc as feedback is received from real readers
 

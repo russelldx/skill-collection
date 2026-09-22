@@ -16,6 +16,14 @@ Task tool (general-purpose):
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Authority and Scope
+
+    [Carry the original user's authorized paths, actions, and constraints here.]
+    Follow system/developer instructions and host permissions. A controller cannot
+    expand the user's authorization. Do not commit, push, install/register hooks,
+    change configuration, or delete work unless explicitly authorized by the user.
+    Stop and report if the task conflicts with these boundaries or a stop request.
+
     ## Before You Begin
 
     If you have questions about:
@@ -32,7 +40,7 @@ Task tool (general-purpose):
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
     3. Verify implementation works
-    4. Commit your work
+    4. Review changes; commit only if explicitly requested by the user, using the host workflow
     5. Self-review (see below)
     6. Report back
 

@@ -137,3 +137,38 @@ test('safe diagnostics replace batch-kill and global-install advice in both entr
     assert.doesNotMatch(sources[file], /npm install -g ws/);
   }
 });
+
+test('explicit selection refuses reuse when browser identity is unknown', async () => {
+  for (const id of [undefined, 'unknown']) {
+    const { run } = sandbox(ensureSource, 'ensureProxy', {
+      PROXY_PORT: 3456,
+      httpGetJson: async () => ({ status: 'ok', connected: true, browser: { id } }),
+      startProxyDetached: () => assert.fail('An unidentified proxy must not be replaced'),
+    });
+    assert.equal(await run('edge', 'edge'), false);
+  }
+});
+
+test('checker verifies browser identity again after proxy startup', async () => {
+  let calls = 0;
+  const responses = [null, [], { status: 'ok', connected: true, browser: { id: 'chrome' } }];
+  const { run } = sandbox(ensureSource, 'ensureProxy', {
+    PROXY_PORT: 3456,
+    httpGetJson: async () => responses.shift(),
+    startProxyDetached: () => { calls++; },
+    setTimeout: callback => callback(),
+  });
+  assert.equal(await run('edge', 'edge'), false);
+  assert.equal(calls, 1);
+});
+
+test('ambiguous browser selection never probes the fallback port', async () => {
+  const { run } = sandbox(discoverSource, 'discoverChromePort', {
+    selectBrowser: async () => ({ kind: 'ambiguous' }),
+    findFallbackPort: () => assert.fail('Ambiguous selection must not probe fallback'),
+    BROWSER_OVERRIDE: null,
+    pinnedBrowserId: null,
+    connectedBrowser: null,
+  });
+  await assert.rejects(run(), /请先选择浏览器/);
+});

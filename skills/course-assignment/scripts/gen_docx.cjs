@@ -9,9 +9,14 @@ const fs = require('fs');
 const path = require('path');
 
 const argv = process.argv.slice(2);
+if (argv.length === 1 && argv[0] === '--check-deps') {
+  loadDocx();
+  console.log('OK: docx dependency available (local/NODE_PATH or existing npm global root)');
+  process.exit(0);
+}
 const pos = argv.filter(a => !a.startsWith('--'));
 if (pos.length < 2) {
-  console.error('用法: node gen_docx.cjs <源.md> <输出.docx> [--img-width 480]');
+  console.error('用法: node gen_docx.cjs <源.md> <输出.docx> [--img-width 480]，或 --check-deps');
   process.exit(1);
 }
 const SRC = path.resolve(pos[0]);
@@ -29,7 +34,7 @@ function loadDocx() {
     const globalRoot = require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim();
     return require(path.join(globalRoot, 'docx'));
   } catch (e2) {
-    console.error('找不到 docx 模块：请先 npm install -g docx，或设置 NODE_PATH 指向全局 node_modules');
+    console.error('找不到 docx 模块：请设置 NODE_PATH 指向已有 docx 的 node_modules，或请用户准备依赖；本脚本不会安装依赖。');
     process.exit(1);
   }
 }

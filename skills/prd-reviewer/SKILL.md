@@ -1,6 +1,6 @@
 ---
 name: prd-reviewer
-description: PRD需求评审评分专家工具。对产品PRD进行10分制严格量化评分，输出总分、各模块得分及详细扣分说明。触发场景：用户上传PRD并要求评审打分；用户要求按PRD评分标准对需求进行评分；需要生成PRD评审报告。
+description: 评审 PRD 的完整性、可验证性和风险并引用原文。仅在用户明确选用本组织七模块十分制评分表时应用固定分值和模板封顶规则；默认通用定性评审或按用户提供的标准评分。
 install_source: official
 install_method: download
 skill_id: official_FefSGrU8
@@ -11,7 +11,13 @@ name_zh: PRD 需求评审评分专家
 
 # PRD评审评分专家 Skill
 
-## 评分体系
+## 适用范围与评分授权
+
+默认做通用 PRD 评审：检查目标、范围、业务规则、验收标准、数据流和风险，引用原文提出问题，不因不符合某组织格式而扣分。用户仅说“评审/打分”不代表同意本组织固定模板。
+
+只有用户明确要求采用下方七模块十分制组织评分表（含 TAPD、人员字段、S/A/B 项目级别及模板不符封顶规则）时，才应用它。若用户提供自己的标准，以其明确选择的标准为准；若需要数值评分而标准不明，先确认评分表，否则只给定性评审并注明“未采用组织评分表”。不得虚构缺失数据、人员或合规结论。
+
+## 评分体系（仅在明确选用本组织评分表时）
 
 | 模块 | 分值 | 核心要求 |
 |------|------|---------|
@@ -43,23 +49,16 @@ name_zh: PRD 需求评审评分专家
 
 ### Step 1：读取PRD内容
 
-对.doc文件执行提取：
-```bash
-python3 -c "
-import re, quopri
-with open('PRD文件.doc','rb') as f:
-    raw=f.read()
-dec=quopri.decodestring(raw).decode('utf-8',errors='ignore')
-text=re.sub(r'<[^>]+>',' ',dec)
-text=re.sub(r'\s+',' ',text)
-with open('/tmp/prd.txt','w',encoding='utf-8') as f: f.write(text)
-print(len(text),'chars')
-"
-```
+先检查文件格式，不只看扩展名。`.doc` 可能是二进制 OLE Word、RTF 或改名的 HTML/MHTML：
 
-### Step 2：逐模块评分
+- 二进制 Word 使用已安装且获准的 LibreOffice/Word 转换为 `.docx`，或用 antiword/catdoc 提取文本。转换时保留原文件，使用独立临时输出目录；不自动安装软件、上传文档或启用宏。
+- 没有可靠转换器时，请用户提供 `.docx`、PDF 或文本导出；不得用 `quopri` 解码加 HTML 正则代替二进制 Word 解析。
+- 只有确认文件是 MIME/MHTML 后，才使用 MIME 解析器按各 part 的传输编码和字符集解码；quoted-printable 不是通用 Word 格式。
+- 核对标题、段落、表格和页数/章节覆盖。乱码或缺失内容应标为“提取失败/待补充”，不能当作 PRD 缺项扣分。保留原文定位供评分引用。
 
-对每个模块按以下标准严格评分。
+### Step 2：按已选择的标准评审
+
+仅在用户明确选用本组织评分表时，对每个模块按下列标准评分，并使用后续评级、红线、输出模板和检查清单。通用模式跳过所有固定分值与模板封顶规则，输出“原文依据—问题及影响—改进建议—待确认项”；用户自带标准则按其标准输出。
 
 ---
 

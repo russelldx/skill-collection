@@ -1,6 +1,6 @@
 ---
 name: pdf
-description: Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and OCR on scanned PDFs to make them searchable. If the user mentions a .pdf file or asks to produce one, use this skill.
+description: Use this skill when the user requests an actual PDF operation or deliverable — reading or extracting text/tables, combining/merging, splitting, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting, extracting images, or OCR on scanned PDFs to make them searchable. A file merely being or being mentioned as a .pdf is not a trigger by itself; use this skill when the user asks to produce or operate on a PDF.
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
@@ -8,7 +8,7 @@ license: Proprietary. LICENSE.txt has complete terms
 
 ## Overview
 
-This guide covers essential PDF processing operations using Python libraries and command-line tools. For advanced features, JavaScript libraries, and detailed examples, see REFERENCE.md. If you need to fill out a PDF form, read FORMS.md and follow its instructions.
+This guide covers essential PDF processing operations using Python libraries and command-line tools. For advanced features, JavaScript libraries, and detailed examples, see [reference.md](reference.md). If you need to fill out a PDF form, read [forms.md](forms.md) and follow its instructions.
 
 ## Quick Start
 
@@ -212,8 +212,10 @@ qpdf input.pdf --pages . 6-10 -- pages6-10.pdf
 # Rotate pages
 qpdf input.pdf output.pdf --rotate=+90:1  # Rotate page 1 by 90 degrees
 
-# Remove password
-qpdf --password=mypassword --decrypt encrypted.pdf decrypted.pdf
+# Remove password (requires the password; never hardcode or paste a real one —
+# shell history, process listings and logs can capture it; use a protected input
+# method supported by the installed qpdf version, and only an authorized document)
+qpdf --password=<password> --decrypt encrypted.pdf decrypted.pdf
 ```
 
 ### pdftk (if available)
@@ -232,7 +234,8 @@ pdftk input.pdf rotate 1east output rotated.pdf
 
 ### Extract Text from Scanned PDFs
 ```python
-# Requires: pip install pytesseract pdf2image
+# Requires: pip install pytesseract pdf2image — install only with the user's
+# authorization, into the approved project environment
 import pytesseract
 from pdf2image import convert_from_path
 
@@ -286,7 +289,8 @@ writer = PdfWriter()
 for page in reader.pages:
     writer.add_page(page)
 
-# Add password
+# Add password (placeholders only — take real passwords from user input or a
+# controlled secret source; never hardcode them in source)
 writer.encrypt("userpassword", "ownerpassword")
 
 with open("encrypted.pdf", "wb") as output:
@@ -304,11 +308,11 @@ with open("encrypted.pdf", "wb") as output:
 | Create PDFs | reportlab | Canvas or Platypus |
 | Command line merge | qpdf | `qpdf --empty --pages ...` |
 | OCR scanned PDFs | pytesseract | Convert to image first |
-| Fill PDF forms | pdf-lib or pypdf (see FORMS.md) | See FORMS.md |
+| Fill PDF forms | pdf-lib or pypdf (see [forms.md](forms.md)) | See [forms.md](forms.md) |
 
 ## Next Steps
 
-- For advanced pypdfium2 usage, see REFERENCE.md
-- For JavaScript libraries (pdf-lib), see REFERENCE.md
-- If you need to fill out a PDF form, follow the instructions in FORMS.md
-- For troubleshooting guides, see REFERENCE.md
+- For advanced pypdfium2 usage, see [reference.md](reference.md)
+- For JavaScript libraries (pdf-lib), see [reference.md](reference.md)
+- If you need to fill out a PDF form, follow the instructions in [forms.md](forms.md)
+- For troubleshooting guides, see [reference.md](reference.md)

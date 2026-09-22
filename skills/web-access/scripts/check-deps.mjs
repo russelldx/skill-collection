@@ -84,9 +84,9 @@ async function ensureProxy(expectedBrowserId, browserOverride) {
   if (health?.status === 'ok' && health.connected) {
     const runningId = health.browser?.id;
     const runningLabel = health.browser?.label || runningId || 'unknown';
-    if (expectedBrowserId && runningId && runningId !== 'unknown' && runningId !== expectedBrowserId) {
-      console.log(`proxy: 浏览器不一致 — 当前已连着 ${runningLabel}，但本次需要 ${expectedBrowserId}`);
-      console.log('  请在终端运行 pkill -f cdp-proxy.mjs 重置后再试');
+    if (expectedBrowserId && runningId !== expectedBrowserId) {
+      console.log(`proxy: 浏览器不一致或身份未确认 — 当前为 ${runningLabel}，但本次需要 ${expectedBrowserId}`);
+      console.log('  请先核对监听端口、脚本绝对路径和 PID；仅在用户授权且确认不影响其他会话后停止该 PID，勿按进程名批量终止。归属不明时请用户处理。');
       return false;
     }
     console.log(`proxy: ready (${runningLabel})`);
@@ -102,7 +102,11 @@ async function ensureProxy(expectedBrowserId, browserOverride) {
     const result = await httpGetJson(targetsUrl, 8000);
     if (Array.isArray(result)) {
       const newHealth = await httpGetJson(healthUrl);
-      const label = newHealth?.browser?.label || 'unknown';
+      if (!newHealth?.connected || (expectedBrowserId && newHealth.browser?.id !== expectedBrowserId)) {
+        console.log('proxy: 浏览器身份未确认或与本次选择不一致；不复用，也不终止其他进程。');
+        return false;
+      }
+      const label = newHealth.browser?.label || 'unknown';
       console.log(`proxy: ready (${label})`);
       return true;
     }
@@ -143,8 +147,8 @@ async function resolveAndReport(override) {
     case 'ambiguous': {
       console.log('browser: needs decision — 用户尚未在 config.env 设置偏好');
       printAvailableHint(result.detected);
-      console.log('  请询问用户：哪个浏览器作为 Agent 的默认？（写入 config.env 的 WEB_ACCESS_BROWSER）');
-      console.log('  若仅本次使用，可重跑：node check-deps.mjs --browser <id>');
+      console.log('  请询问用户本次使用哪个浏览器；只有用户明确要求保存默认偏好时才写入 config.env 的 WEB_ACCESS_BROWSER。');
+      console.log('  本次临时使用可重跑：node check-deps.mjs --browser <id>');
       return { proceed: false, exitCode: 2 };
     }
 
@@ -154,11 +158,11 @@ async function resolveAndReport(override) {
       const sourceDesc = result.source === 'override' ? '本次指定' : '默认偏好';
       console.log(`browser: error — ${sourceDesc}的浏览器是 "${expected}" (${expectedLabel})，但没连上`);
       console.log(`  Agent 处理顺序：`);
-      console.log(`    1. 先用系统命令打开 ${expectedLabel}（按你所在平台自行选择，如 macOS 的 open -a），再重新运行 node check-deps.mjs`);
-      console.log(`    2. 若仍报相同错误，可能是因为远程调试开关没启用 —— 告诉用户：在 ${expectedLabel} 的地址栏访问 ${expected}://inspect/#remote-debugging，勾选 "Allow remote debugging for this browser instance"`);
+      console.log(`    1. 先确认用户已授权启动 ${expectedLabel}；获准后按平台打开，再用相同 --browser 参数重新检查。`);
+      console.log(`    2. 若仍失败，可能是远程调试未启用或 profile 不同；请用户检查 ${expected}://inspect/#remote-debugging，不擅自修改浏览器配置。`);
       printAvailableHint(result.detected);
       if (result.source === 'preference') {
-        console.log(`  也可以编辑 config.env 改默认偏好，或本次临时换浏览器：node check-deps.mjs --browser <id>`);
+        console.log(`  经用户选择可本次临时换浏览器：node check-deps.mjs --browser <id>；只有用户明确要求时才编辑 config.env 保存默认偏好。`);
       }
       return { proceed: false, exitCode: 1 };
     }

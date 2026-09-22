@@ -199,12 +199,14 @@ Repeat steps 1 & 2 until you have a good understanding:
 
 ### Step 4: Read-Only Content Inspection
 
+**Authorization boundary first:** live inspection still touches real accounts and data and costs service calls, even when read-only. Only proceed with an approved fixture dataset, or a bounded live environment the user has explicitly authorized — including the intended account, the data scope, and a call/cost budget. If authorization, an approved dataset, or a budget is unavailable, stop and mark the evaluation as not performed instead of exploring live data.
+
 After understanding the API and tools, USE the MCP server tools:
 - Inspect content using READ-ONLY and NON-DESTRUCTIVE operations ONLY
 - Goal: identify specific content (e.g., users, channels, messages, projects, tasks) for creating realistic questions
 - Should NOT call any tools that modify state
 - Will NOT read the code of the MCP server implementation itself
-- Parallelize this step with individual sub-agents pursuing independent explorations
+- Parallelize this step with individual sub-agents pursuing independent explorations only when subagents are available, permitted, and covered by the same authorization
 - Ensure each subagent is only performing READ-ONLY, NON-DESTRUCTIVE, and IDEMPOTENT operations
 - BE CAREFUL: SOME TOOLS may return LOTS OF DATA which would cause you to run out of CONTEXT
 - Make INCREMENTAL, SMALL, AND TARGETED tool calls for exploration
@@ -381,7 +383,9 @@ After creating your evaluation file, you can use the provided evaluation harness
 
 ## Setup
 
-1. **Install Dependencies**
+0. **Confirm authorization first.** Running the evaluator makes live model calls and may reach real services/data. Confirm with the user (or the authorized task) the intended account, dataset scope, and a call/cost budget before installing dependencies or running evaluations.
+
+1. **Install Dependencies** (in the approved project environment)
 
    ```bash
    pip install -r scripts/requirements.txt
@@ -392,10 +396,11 @@ After creating your evaluation file, you can use the provided evaluation harness
    pip install anthropic mcp
    ```
 
-2. **Set API Key**
+2. **Provide the API key through an approved secret input** — a protected environment file, secret manager, or the harness's environment injection. Do not paste real keys into shell commands, source files, or logs:
 
    ```bash
-   export ANTHROPIC_API_KEY=your_api_key_here
+   # Export from your approved secret source; never commit or echo the value.
+   export ANTHROPIC_API_KEY="$(<path to protected secret file>)"
    ```
 
 ## Evaluation File Format
@@ -435,16 +440,22 @@ python scripts/evaluation.py \
   evaluation.xml
 ```
 
-With environment variables:
+With non-secret environment variables:
+
 ```bash
 python scripts/evaluation.py \
   -t stdio \
   -c python \
   -a my_mcp_server.py \
-  -e API_KEY=abc123 \
   -e DEBUG=true \
   evaluation.xml
 ```
+
+**Secrets and `-e`:** the current evaluator accepts environment variables as
+command-line values, so anything passed this way is visible in shell history
+and process listings. It has no protected secret-input option — do not pass
+real credentials with `-e`. Prefer having the server read its own credentials
+from the environment it already inherits, or use a short-lived scoped token.
 
 ### 2. Server-Sent Events (SSE)
 
@@ -454,10 +465,16 @@ For SSE-based MCP servers (you must start the server first):
 python scripts/evaluation.py \
   -t sse \
   -u https://example.com/mcp \
-  -H "Authorization: Bearer token123" \
   -H "X-Custom-Header: value" \
   evaluation.xml
 ```
+
+**Auth headers:** the current evaluator takes headers on the command line only,
+so a real `Authorization: Bearer <token>` value would appear in shell history
+and process listings — and the evaluator cannot read headers from a protected
+file or secret store. Do not pass production bearer tokens this way; use a
+scoped, short-lived token and revoke it afterwards, or run the server behind an
+authenticated local proxy that injects credentials itself.
 
 ### 3. HTTP (Streamable HTTP)
 
@@ -467,7 +484,7 @@ For HTTP-based MCP servers (you must start the server first):
 python scripts/evaluation.py \
   -t http \
   -u https://example.com/mcp \
-  -H "Authorization: Bearer token123" \
+  -H "X-Custom-Header: value" \
   evaluation.xml
 ```
 
@@ -550,21 +567,19 @@ Here's a complete example of creating and running an evaluation:
 </evaluation>
 ```
 
-2. **Install dependencies**:
+2. **Install dependencies** in the approved project environment, and provide `ANTHROPIC_API_KEY` through your approved secret input (see §Setup):
 
 ```bash
 pip install -r scripts/requirements.txt
-export ANTHROPIC_API_KEY=your_api_key
 ```
 
-3. **Run evaluation**:
+3. **Run evaluation** (the server needs its own credentials; the current evaluator passes `-e` values as command-line arguments, so do not put real tokens there):
 
 ```bash
 python scripts/evaluation.py \
   -t stdio \
   -c python \
   -a github_mcp_server.py \
-  -e GITHUB_TOKEN=ghp_xxx \
   -o github_eval_report.md \
   my_evaluation.xml
 ```

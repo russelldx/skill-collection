@@ -7,16 +7,15 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Commits only when explicitly requested.
 
 Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Context:** If working in an isolated worktree, it should have been created via the `superpowers:using-git-worktrees` skill at execution time.
+**Context:** Execution may stay in the current session or use a new session; neither requires a worktree. Honor the user's workspace preference and host permissions. Use `superpowers:using-git-worktrees` only when isolation is wanted and authorized.
 
-**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
-- (User preferences for plan location override this default)
+**Save plans only when a file is requested:** default `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`; user location preferences override it. Otherwise provide the plan inline. An already detailed approved plan need not be rewritten or signed off again. Skill guidance never overrides system/developer instructions or grants permission for commits, publishing, deletion, or configuration changes.
 
 ## Scope Check
 
@@ -40,7 +39,7 @@ This structure informs the task decomposition. Each task should produce self-con
 - "Run it to make sure it fails" - step
 - "Implement the minimal code to make the test pass" - step
 - "Run the tests and make sure they pass" - step
-- "Commit" - step
+- "Review diff; commit only if requested" - step
 
 ## Plan Document Header
 
@@ -49,7 +48,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Honor the approved execution mode: superpowers:executing-plans in this or a new session, or permitted subagent-driven development. Use the plan's batch size (default up to 3 tasks), report evidence at checkpoints, and do not require repeat signoff after explicit approval. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -95,12 +94,14 @@ def function(input):
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Review changes; commit only if explicitly requested**
 
 ```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
+git diff HEAD -- tests/path/test.py src/path/file.py
+git status --short
 ```
+
+Read in-scope untracked files separately. If the user asked for a commit, use the host's commit workflow without bypassing hooks/signing; otherwise leave changes uncommitted.
 ````
 
 ## No Placeholders
@@ -117,7 +118,7 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - Exact file paths always
 - Complete code in every step — if a step changes code, show the code
 - Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
+- DRY, YAGNI, TDD; commit only on explicit request
 
 ## Self-Review
 
@@ -133,20 +134,10 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+After preparing the plan, honor any execution choice and implementation approval already given. Do not force another signoff for an explicitly approved detailed spec/plan. For planning-only requests, return the plan and wait for implementation authorization.
 
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
+If a choice is still needed, offer:
+1. **Direct execution (current session or optional new session):** use `superpowers:executing-plans`, with the plan's batch size or up to 3 tasks per batch by default.
+2. **Subagent-driven:** use `superpowers:subagent-driven-development` only if delegation is permitted and suitable, with per-task spec and quality review.
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Fresh subagent per task + two-stage review
-
-**If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
-- Batch execution with checkpoints for review
+Both modes report completed tasks, test commands/results, remaining work, and blockers at batch checkpoints. Checkpoints are informational, not mandatory extra signoffs after explicit approval. Pause only for user-requested gates, blockers, material plan changes, new sensitive actions, or a stop request. A new session loads the same plan and last checkpoint; it is never required just to execute a plan.

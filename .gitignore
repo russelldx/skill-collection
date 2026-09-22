@@ -9,11 +9,16 @@ test-env/
 Thumbs.db
 Desktop.ini
 
+# Python
+__pycache__/
+*.pyc
+
 # 编辑器
 *.swp
 *.swo
 *~
 .idea/
 .vscode/
+*.iml
 *.sublime-project
 *.sublime-workspace

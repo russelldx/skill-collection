@@ -336,8 +336,9 @@ qpdf --encrypt user_pass owner_pass 256 --print=none --modify=none -- input.pdf 
 # Check encryption status
 qpdf --show-encryption encrypted.pdf
 
-# Remove password protection (requires password)
-qpdf --password=secret123 --decrypt encrypted.pdf decrypted.pdf
+# Remove password protection (requires password; keep real values out of the
+# command line, source, logs and history — use a protected input method)
+qpdf --password=<password> --decrypt encrypted.pdf decrypted.pdf
 ```
 
 ## Advanced Python Techniques
@@ -581,9 +582,10 @@ except Exception as e:
 
 ### Corrupted PDFs
 ```bash
-# Use qpdf to repair
+# Use qpdf to repair; default to a new output file instead of overwriting the original
 qpdf --check corrupted.pdf
-qpdf --replace-input corrupted.pdf
+qpdf corrupted.pdf repaired.pdf
+# In-place --replace-input only with explicit user authorization and a backup
 ```
 
 ### Text Extraction Issues

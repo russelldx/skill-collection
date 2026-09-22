@@ -1,7 +1,6 @@
 ---
 name: firecrawl-scrape
-description: |
-  Extract clean markdown from any URL, including JavaScript-rendered SPAs. Use this skill whenever the user provides a URL and wants its content, says "scrape", "grab", "fetch", "pull", "get the page", "extract from this URL", or "read this webpage". Handles JS-rendered pages, multiple concurrent URLs, and returns LLM-optimized markdown. Use this instead of WebFetch for any webpage content extraction.
+description: Extract clean markdown from known URLs, including JavaScript-rendered SPAs, when Firecrawl CLI extraction is selected. Supports single-page and concurrent URL scraping. Do not mandate Firecrawl for every URL or replace WebFetch and other suitable extraction tools solely because a user asks to read a webpage.
 allowed-tools:
   - Bash(firecrawl *)
   - Bash(npx firecrawl *)
@@ -13,9 +12,11 @@ Scrape one or more URLs. Returns clean, LLM-optimized markdown. Multiple URLs ar
 
 ## When to use
 
-- You have a specific URL and want its content
+- Firecrawl is selected for extracting a specific URL's content
 - The page is static or JS-rendered (SPA)
-- Step 2 in the [workflow escalation pattern](firecrawl-cli): search → **scrape** → map → crawl → interact
+- Step 2 in the [Firecrawl CLI workflow](../firecrawl/SKILL.md#workflow): search → **scrape** → map → crawl → interact
+
+This is the CLI interface, not a mandate to replace WebFetch or install MCP. Firecrawl MCP is optional and uses its own schema. Follow the [security rules](../firecrawl/rules/security.md) before sending private URLs or data.
 
 ## Quick start
 
@@ -63,6 +64,6 @@ firecrawl scrape "https://example.com/pricing" --query "What is the enterprise p
 
 ## See also
 
-- [firecrawl-search](../firecrawl-search/SKILL.md) — find pages when you don't have a URL
+- [Firecrawl CLI search](../firecrawl/SKILL.md#search) — find pages when you don't have a URL
 - [firecrawl-interact](../firecrawl-interact/SKILL.md) — when scrape can't get the content, use `interact` to click, fill forms, etc.
 - [firecrawl-download](../firecrawl-download/SKILL.md) — bulk download an entire site to local files

@@ -1,8 +1,8 @@
 ---
 name: docx
 version: 2.0.0
-description: "Comprehensive Word (.docx) skill: create, read, edit, and manipulate Word documents end-to-end. Covers turning Markdown or structured text into polished Word output, filling reusable templates ({{token}} or reference-doc), applying correct Chinese (CJK) typography defaults, generating bespoke docs from scratch with docx-js, and low-level OOXML patching including tracked changes and comments. Triggers include any mention of 'Word doc', 'word document', '.docx', '报告', '备忘录', '信函', '合同', '会议纪要', 'Markdown 转 Word', 'md 转 docx', '套模板生成 Word', '中文 Word 报告', 'tracked changes', '修订标记', 'Word 批注', 'OOXML', or requests to insert/replace images, perform find-and-replace, or convert content into a polished Word document. Do NOT use for PDFs, spreadsheets, Google Docs, or general coding tasks unrelated to document generation."
-description_zh: "全功能 Word(.docx) 技能：端到端创建、读取、编辑和操作 Word 文档。覆盖 Markdown/结构化文本转 Word、模板套用（{{token}} 或 reference-doc 两种）、正确的中文排版默认值、用 docx-js 从零定制文档、以及 OOXML 底层修补（含修订标记、批注）。触发词：'Word 文档'、'.docx'、'报告/备忘录/信函/合同/会议纪要'、'Markdown 转 Word'、'md 转 docx'、'套模板生成 Word'、'中文 Word 报告'、'修订标记'、'Word 批注'、'OOXML'，以及插入/替换图片、查找替换、把内容转为精美 Word 文档等请求。不适用于 PDF、电子表格、Google Docs 或与文档生成无关的编程任务。"
+description: "Comprehensive Word (.docx) skill: create, read, edit, and manipulate Word documents end-to-end. Covers turning Markdown or structured text into polished Word output, filling reusable templates ({{token}} or reference-doc), applying correct Chinese (CJK) typography defaults, generating bespoke docs from scratch with docx-js, and low-level OOXML patching including tracked changes and comments. Triggers include any mention of 'Word doc', 'word document', '.docx', 'Markdown 转 Word', 'md 转 docx', '套模板生成 Word', '中文 Word 报告', 'tracked changes', '修订标记', 'Word 批注', 'OOXML', or requests to insert/replace images, perform find-and-replace, or convert content into a polished Word document; generic business-document words (报告/备忘录/信函/合同/会议纪要, report/memo/letter/contract/minutes) apply only when a Word/.docx deliverable is intended. Do NOT use for PDFs, spreadsheets, Google Docs, or general coding tasks unrelated to document generation."
+description_zh: "全功能 Word(.docx) 技能：端到端创建、读取、编辑和操作 Word 文档。覆盖 Markdown/结构化文本转 Word、模板套用（{{token}} 或 reference-doc 两种）、正确的中文排版默认值、用 docx-js 从零定制文档、以及 OOXML 底层修补（含修订标记、批注）。触发词：'Word 文档'、'.docx'、'Markdown 转 Word'、'md 转 docx'、'套模板生成 Word'、'中文 Word 报告'、'修订标记'、'Word 批注'、'OOXML'，以及插入/替换图片、查找替换、把内容转为精美 Word 文档等请求；'报告/备忘录/信函/合同/会议纪要'（report/memo/letter/contract/minutes）等通用文种词仅在明确需要 Word/.docx 产出时触发。不适用于 PDF、电子表格、Google Docs 或与文档生成无关的编程任务。"
 license: Proprietary
 ---
 
@@ -78,8 +78,10 @@ finished Markdown file they want converted as-is — follow these steps in order
    required content (specific data, tables, lists), and formatting preferences
    (Chinese/English, font, layout).
 
-2. **Choose a template** — pick the closest match from `templates/`. If none
-   fits, use `report-standard.docx` as a general-purpose default.
+2. **Decide whether a template is needed** — this skill bundles no report,
+   memo, letter, contract or meeting-minutes DOCX templates. A user-supplied
+   template is optional: verify its actual path exists before using it. Without
+   one, use the no-template Markdown pipeline or generate with docx-js.
 
 3. **Compose the Markdown** — write a NEW `.md` file that contains ONLY the
    final document content a reader would see:
@@ -113,12 +115,12 @@ It reports availability of `pandoc`, `node` + `docx`, `soffice` (LibreOffice),
 and `pdftoppm`. Choose the engine based on results:
 
 - **pandoc available** → preferred for Markdown→docx (fastest, template-aware).
-- **pandoc missing, node available** → use the Node fallback renderer
-  `scripts/md_to_docx.mjs` (covers headings, lists, tables, bold/italic, code,
-  images, blockquotes).
+- **pandoc missing, node + a resolvable `docx` package available** → use the Node fallback renderer
+  `scripts/md_to_docx.mjs` (see its supported features and limitations in §Fallback below).
 - **soffice available** → enables `scripts/preview.py` self-check screenshots.
 - All missing → tell the user which dependency to install (doctor prints the
-  per-platform command).
+  per-platform command). Getting a dependency detected is not permission to
+  install it: install only in an approved environment, with the user's OK.
 
 ---
 
@@ -134,10 +136,12 @@ Convert a Markdown file (or content you wrote to a temp `.md`) into `.docx`.
 ### Preferred: pandoc
 
 ```bash
-python scripts/md_to_docx.py input.md output.docx \
-  --reference templates/report-standard.docx \
-  --toc
+# No template required
+python scripts/md_to_docx.py input.md output.docx --toc
 ```
+
+For optional user-supplied styling, first check the template exists (see Part B),
+then pass its actual path with `--reference`.
 
 `md_to_docx.py` wraps pandoc and automatically:
 - resolves relative image paths against the Markdown file's directory,
@@ -151,10 +155,15 @@ python scripts/md_to_docx.py input.md output.docx \
 node scripts/md_to_docx.mjs input.md output.docx --cjk
 ```
 
-Requires the global `docx` npm package. The `--cjk` flag applies Chinese
-typography defaults (see §Chinese typography). Supported Markdown: headings
-(#–######), ordered/unordered lists (nested), tables, bold/italic/inline-code,
-fenced code blocks, blockquotes, images, horizontal rules, and links.
+Requires `node` plus a resolvable `docx` package (prefer a project-local
+`npm install docx`; see §External dependencies). The `--cjk` flag applies
+Chinese typography defaults (see §Chinese typography). Supported Markdown:
+headings (#–######), ordered/unordered lists (single-level — nested lists
+render flat), pipe tables, bold/italic/inline-code, fenced code blocks,
+blockquotes, images, horizontal rules, and links (links render as `text (url)`
+rather than clickable hyperlinks). No footnotes, definition lists, or task
+lists — use pandoc for those. See [reference/pipeline.md](reference/pipeline.md)
+for the full limitation list.
 
 ### After generating: validate + preview
 
@@ -171,44 +180,38 @@ for margin overflow, squeezed tables, missing fonts, or empty TOC.
 
 # Part B: Template fill
 
-Generate a standard document by filling a template instead of building from
-scratch. Templates live in `templates/`:
-
-| File | Use for |
-|------|---------|
-| `report-standard.docx` | A4 report: cover, TOC, H1–H3, header/footer, page numbers |
-| `memo.docx` | Memo with To / From / Subject / Date header block |
-| `letter.docx` | Business letter with letterhead and signature block |
-| `contract.docx` | Contract skeleton with numbered clauses and signature area |
-| `meeting-minutes.docx` | Meeting minutes: attendees, agenda, decisions table |
-
-> The shipped templates are minimal style references. If a template file is
-> missing or you need a richer one, build it once with §Generating from scratch
-> and drop it into `templates/` for reuse.
+Template filling is optional and requires an existing user-supplied DOCX.
+There is no bundled business-template library. Do not invent a template path
+or silently claim a missing template was used. If none is available, omit
+`--reference` in Part A or use Part D to generate from scratch.
 
 ### Reference-document workflow
 
-1. Pick the closest template from the table above.
+1. Set `TEMPLATE` to the actual user-supplied absolute path and test it exists.
 2. Write the body content as Markdown (per the Golden Rule).
-3. Render with the template as the reference doc:
+3. Render only after the existence check succeeds:
 
 ```bash
-python scripts/md_to_docx.py body.md output.docx --reference templates/memo.docx
+python -c 'import pathlib,sys; sys.exit(0 if pathlib.Path(sys.argv[1]).is_file() else "Template not found")' "$TEMPLATE" && \
+  python scripts/md_to_docx.py body.md output.docx --reference "$TEMPLATE"
 ```
 
 ### Placeholder workflow
 
 For templates with literal tokens like `{{title}}`, `{{date}}` in the docx,
-use the token replacer:
+use the token replacer (check the template exists first, as above):
 
 ```bash
-python scripts/fill_template.py templates/contract.docx output.docx \
-  --set title="服务采购合同" --set party_a="甲方公司" --set date="2026-06-17"
+python -c 'import pathlib,sys; sys.exit(0 if pathlib.Path(sys.argv[1]).is_file() else "Template not found")' "$TEMPLATE" && \
+  python scripts/fill_template.py "$TEMPLATE" output.docx \
+    --set title="服务采购合同" --set party_a="甲方公司" --set date="2026-06-17"
 ```
 
 `fill_template.py` performs safe text-run replacement (handles tokens split
-across runs) without breaking document structure. It backs up nothing because
-it never edits the template in place — it always writes a new `output.docx`.
+across runs) without breaking document structure. It writes to the output path
+you give it, so use distinct, fully resolved template and output paths and an
+output file you are approved to write — that precondition is what keeps the
+template file itself untouched.
 
 ---
 
@@ -245,11 +248,13 @@ Rules for Chinese documents:
 # Part D: Generating from scratch with docx-js
 
 Produce `.docx` files via JavaScript when no template fits and the layout is
-custom. Install: `npm install -g docx`.
+custom. Prefer a project-local `npm install docx`; a global `npm install -g docx`
+requires the user's approval and an already-approved environment.
 
 ### Bootstrap
 
 ```javascript
+const fs = require('node:fs');
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun,
         Header, Footer, AlignmentType, PageOrientation, LevelFormat, ExternalHyperlink,
         InternalHyperlink, Bookmark, FootnoteReferenceRun, PositionalTab,
@@ -836,13 +841,15 @@ OOXML / patching / comments:
 - `scripts/office/unpack.py` — explode a `.docx` into pretty-printed XML.
 - `scripts/office/pack.py` — repackage an unpacked tree, with auto-repair.
 - `scripts/office/validate.py` — XSD-based schema validation for DOCX/PPTX.
-- `scripts/office/soffice.py` — sandboxed LibreOffice wrapper.
+- `scripts/office/soffice.py` — LibreOffice wrapper (headless conversion helper).
 
 ## External dependencies
 
 - `pandoc` — preferred Markdown→docx engine (Part A).
-- `node` + global `docx` package (`npm install -g docx`) — fallback renderer
-  and bespoke generation (Parts A and D).
+- `node` + a resolvable `docx` package — fallback renderer and bespoke
+  generation (Parts A and D). Prefer a project-local `npm install docx`; use a
+  global `npm install -g docx` only with the user's explicit approval and an
+  already-approved environment.
 - `LibreOffice` (`soffice`) — headless conversion, accepting tracked changes,
   preview rendering.
 - `pdftoppm` (Poppler) — required by `preview.py` to rasterize PDFs.

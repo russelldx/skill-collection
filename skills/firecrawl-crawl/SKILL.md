@@ -1,7 +1,6 @@
 ---
 name: firecrawl-crawl
-description: |
-  Bulk extract content from an entire website or site section. Use this skill when the user wants to crawl a site, extract all pages from a docs section, bulk-scrape multiple pages following links, or says "crawl", "get all the pages", "extract everything under /docs", "bulk extract", or needs content from many pages on the same site. Handles depth limits, path filtering, and concurrent extraction.
+description: Bulk extract a website or scoped site section with the Firecrawl CLI when Firecrawl crawling is selected. Use for docs sections or many linked pages, with depth limits, path filters, and concurrency controls. Do not expand the requested site scope or treat this CLI workflow as a Firecrawl MCP requirement.
 allowed-tools:
   - Bash(firecrawl *)
   - Bash(npx firecrawl *)
@@ -15,7 +14,9 @@ Bulk extract content from a website. Crawls pages following links up to a depth/
 
 - You need content from many pages on a site (e.g., all `/docs/`)
 - You want to extract an entire site section
-- Step 4 in the [workflow escalation pattern](firecrawl-cli): search → scrape → map → **crawl** → interact
+- Step 4 in the [Firecrawl CLI workflow](../firecrawl/SKILL.md#workflow): search → scrape → map → **crawl** → interact
+
+This is a selected Firecrawl CLI workflow; MCP is optional and uses a different schema. Follow the [security rules](../firecrawl/rules/security.md) and keep crawl scope within the user's request.
 
 ## Quick start
 

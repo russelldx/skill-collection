@@ -47,7 +47,7 @@ Use this when `/scrape` is not enough because the feature needs to act on the pa
 
 ## Escalation Rules
 
-- If the page can be read directly, stay on [firecrawl-build-scrape](../firecrawl-build-scrape/SKILL.md).
+- If the page can be read directly, use `firecrawl-build-scrape` instead (not part of this collection).
 
 ## Docs (Source of Truth)
 
@@ -62,6 +62,4 @@ Read the source-of-truth page for your project language before writing integrati
 
 ## See Also
 
-- [firecrawl-build](../firecrawl-build/SKILL.md)
-- [firecrawl-build-scrape](../firecrawl-build-scrape/SKILL.md)
-- [firecrawl-build-search](../firecrawl-build-search/SKILL.md)
+- `firecrawl-build`, `firecrawl-build-scrape`, `firecrawl-build-search` — not part of this collection

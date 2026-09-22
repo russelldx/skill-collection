@@ -10,7 +10,7 @@
 
 1. 根据任务从 `skills/` 选择需要的技能，不扫描归档作为可安装技能。
 2. 检查目标环境的运行时、工具、子代理能力及已安装版本。
-3. 说明待安装目录和依赖，得到授权后安装；目标目录已存在时先比较，不覆盖。
+3. 核对所选目录的来源和许可；说明待安装目录和依赖，得到授权后安装；目标目录已存在时先比较，不覆盖。
 4. 单独确认 MCP、凭据、全局依赖和 hooks 的配置，不能把安装技能视为授权这些操作。
 
 手动安装示例（Git Bash / POSIX shell；先确认目标技能不存在）：
@@ -19,7 +19,7 @@
 git clone <仓库地址>
 cd skill-collection
 # 按需选择一个目录；不要将尖括号占位符直接执行。
-cp -r skills/anthropic-pdf <你的agent技能目录>/
+cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 ```
 
 目标目录由宿主决定，例如项目级 `.qoder/skills/` 或用户级 `~/.qoder/skills/`、`~/.claude/skills/`。不要递归复制整个仓库，也不要执行 `skills/*` 全量安装。
@@ -81,6 +81,8 @@ bash validate-skills.sh
 
 验证器检查活动入口、索引覆盖、配置及实际本地 Markdown 链接，不执行登录、上传、hooks 或真实文档修改。具体回归与未验证能力见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
+仓库维护者若同时在本机安装着同名技能，可用 `python sync-skills.py check` 只读对比两侧哈希；同步必须通过显式 `apply` 命令并逐文件复核，提交前的 pre-commit 只做只读校验，不会自动复制、暂存或删除内容。
+
 不同 agent 对工具名、MCP、hooks、子代理和 shell 的支持不同。纯文本指令也可能引用宿主特有能力，不能仅凭 `SKILL.md` 存在承诺跨平台完全兼容。
 
 ## 额外内容与来源
@@ -88,6 +90,8 @@ bash validate-skills.sh
 `daibi-template/` 是个人文风技能制作指南，不计入上述技能数量。
 
 各目录保留原有来源与许可证文件；本地修改可能与上游不同。来源包括 Anthropic、Firecrawl、Superpowers、claude-mem、PUA、社区和自创技能。没有明确许可证的内容，不应推定获得任意再分发授权。
+
+**公开发布阻塞**：`anthropic-docx`、`anthropic-pdf`、`anthropic-pptx`、`anthropic-xlsx` 的现有 `LICENSE.txt` 明确限制复制、衍生和再分发；本地技术审查与修复不代表取得许可。未确认适用权利前，不应公开分发这些目录或宣称整个合集可自由复制。其他仅有来源或许可名称、缺少具体条款的目录也需分别核验；不删除或替换原许可来绕过限制。
 
 ## 贡献
 

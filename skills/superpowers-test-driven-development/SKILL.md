@@ -34,13 +34,15 @@ Thinking "skip TDD just this once"? Stop. That's rationalization.
 NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-Write code before the test? Delete it. Start over.
+Write code before the test this session? Delete it. Start over.
 
 **No exceptions:**
 - Don't keep it as "reference"
 - Don't "adapt" it while writing tests
 - Don't look at it
-- Delete means delete
+- Delete means delete — for code you wrote in violation during this session
+
+**Code you did not author in this session (or that the user may still want):** do not delete it outright. Stop, tell your human partner what exists and why it blocks TDD, and offer to park it (move it to an approved scratch/stash location) or delete it only with their explicit confirmation. Then implement fresh from tests.
 
 Implement fresh from tests. Period.
 
@@ -262,7 +264,7 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 | "Tests after achieve same goals" | Tests-after = "what does this do?" Tests-first = "what should this do?" |
 | "Already manually tested" | Ad-hoc ≠ systematic. No record, can't re-run. |
 | "Deleting X hours is wasteful" | Sunk cost fallacy. Keeping unverified code is technical debt. |
-| "Keep as reference, write tests first" | You'll adapt it. That's testing after. Delete means delete. |
+| "Keep as reference, write tests first" | You'll adapt it. That's testing after. Delete means delete for code written in violation this session; pre-existing or user-authored code: confirm or park it first. |
 | "Need to explore first" | Fine. Throw away exploration, start with TDD. |
 | "Test hard = design unclear" | Listen to test. Hard to test = hard to use. |
 | "TDD will slow me down" | TDD faster than debugging. Pragmatic = test-first. |
@@ -285,7 +287,7 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 - "TDD is dogmatic, I'm being pragmatic"
 - "This is different because..."
 
-**All of these mean: Delete code. Start over with TDD.**
+**All of these mean: remove the untested code and start over with TDD.** Delete in-session violations directly; for code you did not write this session or the user may still want, get explicit confirmation or park it first.
 
 ## Example: Bug Fix
 

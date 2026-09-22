@@ -1,6 +1,6 @@
 ---
 name: pptx
-description: "Use this skill any time a .pptx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations; reading, parsing, or extracting text from any .pptx file (even if the extracted content will be used elsewhere, like in an email or summary); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates, layouts, speaker notes, or comments. Trigger whenever the user mentions \"deck,\" \"slides,\" \"presentation,\" or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill."
+description: "Use this skill when the user requests actual slide or PPTX work — creating, reading, editing, combining, or splitting presentations, or working with .pptx templates, layouts, speaker notes, or comments, including extracting text/content from a .pptx file when that is asked for. Trigger on that requested slide/PPTX work, not on an incidental mention of \"deck,\" \"slides,\" \"presentation,\" or a .pptx filename. If the user wants a .pptx opened, created, or modified, use this skill."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
@@ -140,9 +140,9 @@ Choose colors that match your topic — don't default to generic blue. Use these
 
 ## QA (Required)
 
-**Assume there are problems. Your job is to find them.**
+**Inspect for actual problems and report the evidence honestly.**
 
-Your first render is almost never correct. Approach QA as a bug hunt, not a confirmation step. If you found zero issues on first inspection, you weren't looking hard enough.
+Render and test even when the first inspection looks clean. A clean result is valid after a deliberate second pass; never invent a defect or make an unnecessary edit merely to satisfy a fix cycle.
 
 ### Content QA
 
@@ -162,12 +162,12 @@ If grep returns results, fix them before declaring success.
 
 ### Visual QA
 
-**⚠️ USE SUBAGENTS** — even for 2-3 slides. You've been staring at the code and will see what you expect, not what's there. Subagents have fresh eyes.
+**Prefer an independent reviewer when available and permitted.** If subagents are unavailable or prohibited, perform a separate sequential second pass yourself using the checklist below, and disclose that it was a self-review. Rendering and content/testing checks remain required; do not skip them because no subagent is available. If rendering tools are missing, report visual QA as blocked/unverified, not passed.
 
 Convert slides to images (see [Converting to Images](#converting-to-images)), then use this prompt:
 
 ```
-Visually inspect these slides. Assume there are issues — find them.
+Visually inspect these slides. Report actual issues; a clean result is acceptable.
 
 Look for:
 - Overlapping elements (text through shapes, lines through words, stacked elements)
@@ -194,13 +194,13 @@ Report ALL issues found, including minor ones.
 
 ### Verification Loop
 
-1. Generate slides → Convert to images → Inspect
-2. **List issues found** (if none found, look again more critically)
-3. Fix issues
-4. **Re-verify affected slides** — one fix often creates another problem
-5. Repeat until a full pass reveals no new issues
+1. Generate slides → Run content/structural checks → Convert to images → Inspect every slide
+2. **List actual issues found**, or record that the checklist found none
+3. Perform an independent review when available, otherwise a sequential second-pass self-review
+4. Fix only observed issues; re-render and re-test affected slides after each change
+5. Finish with a full pass showing no outstanding issues
 
-**Do not declare success until you've completed at least one fix-and-verify cycle.**
+**A clean initial render plus a clean second pass needs no artificial fix cycle.** State which checks ran and who reviewed; never claim rendering/testing that did not occur.
 
 ---
 
@@ -225,8 +225,8 @@ pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
 
 ## Dependencies
 
-- `pip install "markitdown[pptx]"` - text extraction
+- `pip install "markitdown[pptx]"` - text extraction (install in the approved environment)
 - `pip install Pillow` - thumbnail grids
-- `npm install -g pptxgenjs` - creating from scratch
-- LibreOffice (`soffice`) - PDF conversion (auto-configured for sandboxed environments via `scripts/office/soffice.py`)
+- `pptxgenjs` - creating from scratch: prefer an existing/project-local dependency; `npm install -g pptxgenjs` requires the user's explicit approval and an approved environment. Never install tools solely to claim QA that was not run.
+- LibreOffice (`soffice`) - PDF conversion (auto-configured via `scripts/office/soffice.py`)
 - Poppler (`pdftoppm`) - PDF to images

@@ -1,7 +1,6 @@
 ---
 name: firecrawl-download
-description: |
-  Download an entire website as local files — markdown, screenshots, or multiple formats per page. Use this skill when the user wants to save a site locally, download documentation for offline use, bulk-save pages as files, or says "download the site", "save as local files", "offline copy", "download all the docs", or "save for reference". Combines site mapping and scraping into organized local directories.
+description: Save a website or documentation section as local markdown, screenshots, or other files using the Firecrawl CLI when Firecrawl is selected. Combines remote mapping and scraping for offline copies; authorize site scope and output location before bulk work. This is not an offline-only fetcher or a Firecrawl MCP requirement.
 allowed-tools:
   - Bash(firecrawl *)
   - Bash(npx firecrawl *)
@@ -11,7 +10,7 @@ allowed-tools:
 
 > **Experimental.** Convenience command that combines `map` + `scrape` to save an entire site as local files.
 
-Maps the site first to discover pages, then scrapes each one into nested directories under `.firecrawl/`. All scrape options work with download. Always pass `-y` to skip the confirmation prompt.
+Maps the site first to discover pages, then scrapes each one into nested directories under `.firecrawl/`. All scrape options work with download. Follow the [security rules](../firecrawl/rules/security.md). Confirm the site scope, page limit, credit budget, and output destination before bulk work; use `-y` in non-interactive execution only after that authorization. It is not a substitute for user consent.
 
 ## When to use
 
@@ -56,7 +55,7 @@ firecrawl download https://docs.example.com \
 | `--include-paths <paths>` | Only download matching paths                             |
 | `--exclude-paths <paths>` | Skip matching paths                                      |
 | `--allow-subdomains`      | Include subdomain pages                                  |
-| `-y`                      | Skip confirmation prompt (always use in automated flows) |
+| `-y`                      | Skip CLI prompt only after user authorization covers the operation |
 
 ## Scrape options (all work with download)
 

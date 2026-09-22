@@ -7,18 +7,18 @@ Ideally it includes the following attributes:
 - Use the "we" tense, as you are part of the company. Many of the bullets should say "we did this" or "we did that"
 
 ## Tools to use
-If you have access to the following tools, please try to use them. If not, you can also let the user know directly that their responses would be better if they gave them access.
+Gather only from sources the user has approved for this newsletter, and only for the audience and time period being covered. Use approved sources such as:
 
-- Slack: look for messages in channels with lots of people, with lots of reactions or lots of responses within the thread
-- Email: look for things from executives that discuss company-wide announcements
-- Calendar: if there were meetings with large attendee lists, particularly things like All-Hands meetings, big company announcements, etc. If there were documents attached to those meetings, those are great links to include.
-- Documents: if there were new docs published in the last week or two that got a lot of attention, you can link them. These should be things like company-wide vision docs, plans for the upcoming quarter or half, things authored by critical executives, etc.
-- External press: if you see references to articles or press we've received over the past week, that could be really cool too.
+- Slack: approved company announcement channels or executive posts
+- Email: company-wide announcements the user points you to
+- Calendar: approved all-hands or large company meetings, and documents attached to them
+- Documents: published company-wide docs the user approves
+- External press: articles or press about the company that the user points you to
 
-If you don't have access to any of these things, you can ask the user for things they want to cover. In this case, you'll mostly just be polishing up and fitting to this format more directly.
+Do not sweep every connected source simply because access exists. If you don't have access to approved sources, ask the user for the material they want covered. Drafting the newsletter does not authorize sending or posting it — distribution requires the user's explicit approval of destination, content, and audience.
 
 ## Sections
-The company is pretty big: 1000+ people. There are a variety of different teams and initiatives going on across the company. To make sure the update works well, try breaking it into sections of similar things. You might break into clusters like {product development, go to market, finance} or {recruiting, execution, vision}, or {external news, internal news} etc. Try to make sure the different areas of the company are highlighted well.
+Break the update into sections of similar things, based on the actual organization and the sources you were given. You might break into clusters like {product development, go to market, finance} or {recruiting, execution, vision}, or {external news, internal news} etc. Try to make sure the different areas of the company are highlighted well.
 
 ## Prioritization
 Focus on:

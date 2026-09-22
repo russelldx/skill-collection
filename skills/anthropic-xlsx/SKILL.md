@@ -1,6 +1,6 @@
 ---
 name: xlsx
-description: "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \"the xlsx in my downloads\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved."
+description: "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \"the xlsx in my downloads\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. Produce a workbook deliverable only when the user requests a spreadsheet output; for analysis-only or explanation-only requests, answer directly from the data without requiring a new workbook. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
@@ -71,7 +71,7 @@ A user may ask you to create, edit, or analyze the contents of an .xlsx file. Yo
 
 ## Important Requirements
 
-**LibreOffice Required for Formula Recalculation**: You can assume LibreOffice is installed for recalculating formula values using the `scripts/recalc.py` script. The script automatically configures LibreOffice on first run, including in sandboxed environments where Unix sockets are restricted (handled by `scripts/office/soffice.py`)
+**LibreOffice Recalculation Is Platform-Limited**: Check that `soffice` is available; do not assume it is installed. Per the recovered `scripts/recalc.py`: on Linux/macOS it runs LibreOffice with a fresh temporary user profile (never the real user profile or its macros) and opens the document with document-macro execution and external-link updates disabled. A timeout, failed setup, or missing completion confirmation are reported as errors, not successful recalculation. Windows and other platforms are explicitly refused until reliable process-tree cleanup is implemented — do not fall back to a user's profile. Report recalculation as unverified when the branch is disabled or LibreOffice is unavailable.
 
 ## Reading and analyzing data
 
@@ -134,7 +134,7 @@ This applies to ALL calculations - totals, percentages, ratios, differences, etc
 2. **Create/Load**: Create new workbook or load existing file
 3. **Modify**: Add/edit data, formulas, and formatting
 4. **Save**: Write to file
-5. **Recalculate formulas (MANDATORY IF USING FORMULAS)**: Use the scripts/recalc.py script
+5. **Recalculate formulas (MANDATORY IF USING FORMULAS)**: Use the scripts/recalc.py script (Linux/macOS only — see §Important Requirements; on Windows the script refuses and recalculation must be reported as unverified)
    ```bash
    python scripts/recalc.py output.xlsx
    ```
@@ -218,11 +218,12 @@ python scripts/recalc.py output.xlsx 30
 ```
 
 The script:
-- Automatically sets up LibreOffice macro on first run
-- Recalculates all formulas in all sheets
-- Scans ALL cells for Excel errors (#REF!, #DIV/0!, etc.)
-- Returns JSON with detailed error locations and counts
-- Works on both Linux and macOS
+- Creates its own macro in a disposable temporary profile per run; the profile is removed afterwards (success or failure)
+- Recalculates all formulas in all sheets without executing document/user macros, and without updating external links
+- Scans ALL cells for Excel errors (#REF!, #DIV/0!, etc.) after confirmed completion (a completion marker is required)
+- Returns JSON with detailed error locations and counts, or an explicit error
+- Uses POSIX process-group timeout cleanup on Linux/macOS; Windows is disabled (refused up front)
+- An 8-test mocked-process isolation suite (`scripts/test_recalc.py`) covers profile isolation and failure paths — it is not evidence of real recalculation or LibreOffice end-to-end compatibility
 
 ## Formula Verification Checklist
 
@@ -274,6 +275,11 @@ The script returns JSON with error details:
 - **Warning**: If opened with `data_only=True` and saved, formulas are replaced with values and permanently lost
 - For large files: Use `read_only=True` for reading or `write_only=True` for writing
 - Formulas are preserved but not evaluated - use scripts/recalc.py to update values
+
+### Limitations (verify before relying on these paths)
+- **Macro-enabled workbooks (.xlsm):** openpyxl does not preserve every VBA/macro feature. Load with `keep_vba=True` when macros must be retained, save as a distinct output file, and verify the result in Excel — recalc.py recalculates formulas but does not validate macro or feature preservation.
+- **Structural edits:** after inserting/deleting rows or columns, re-check dependent formulas, named ranges, charts and external links. openpyxl stores formula strings as text; it does not recalculate them itself, and some references may not update as expected.
+- **Original-file preservation:** prefer writing to a distinct approved output path. Saving over the original rewrites the whole workbook and may drop features openpyxl does not model; only overwrite when the user has explicitly approved it.
 
 ### Working with pandas
 - Specify data types to avoid inference issues: `pd.read_excel('file.xlsx', dtype={'id': str})`

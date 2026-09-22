@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: "Explore intent, requirements, and design for ambiguous or substantial creative work. Skip small clear tasks and already approved detailed specs; do not add a new approval gate to authorized implementation."
 ---
 
 # Brainstorming Ideas Into Designs
@@ -9,27 +9,25 @@ Help turn ideas into fully formed designs and specs through natural collaborativ
 
 Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
 
-<HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
-</HARD-GATE>
+## Entry Gate: Is Design Work Needed?
 
-## Anti-Pattern: "This Is Too Simple To Need A Design"
+Skip this workflow for small, clear tasks with understood scope and acceptance criteria, and for detailed specs already explicitly approved for implementation. Briefly state the intended change and proceed with the authorized work; do not require brainstorming, a new design document, or repeated signoff. If new ambiguity materially affects scope, safety, or correctness, resolve that specific issue.
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+For genuinely ambiguous or substantial new designs, use the process below and obtain approval before implementing the proposed design. System/developer instructions, host permissions, and the user's scope govern all steps. This workflow does not authorize commits, configuration changes, or extra artifacts.
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+For tasks that need brainstorming, track these items in order with a permitted task tool or an inline checklist (no tool is mandatory):
 
 1. **Explore project context** — check files, docs, recent commits
 2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit
+6. **Record design** — inline by default; write `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` only if a file is requested. Commit only on explicit user request.
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
-8. **User reviews written spec** — ask user to review the spec file before proceeding
-9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+8. **Approval check** — honor existing explicit approval; ask only for an unapproved design or material changes
+9. **Transition to implementation** — use writing-plans if a multi-step plan is needed; an approved detailed plan can proceed directly
 
 ## Process Flow
 
@@ -63,7 +61,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
+**Exit when the needed design is approved.** Use writing-plans if a plan is still needed; otherwise continue the already authorized implementation workflow. The diagram applies only after the entry gate determines design work is necessary; recording may be inline, and existing approval satisfies its review nodes.
 
 ## The Process
 
@@ -108,10 +106,9 @@ digraph brainstorming {
 
 **Documentation:**
 
-- Write the validated design (spec) to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-  - (User preferences for spec location override this default)
-- Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document to git
+- Record the validated design inline, or write `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` only when a file is requested (honor the user's location).
+- Use elements-of-style:writing-clearly-and-concisely if available and appropriate.
+- Do not commit unless explicitly asked.
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -123,17 +120,15 @@ After writing the spec document, look at it with fresh eyes:
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
-**User Review Gate:**
-After the spec review loop passes, ask the user to review the written spec before proceeding:
+**Approval Check:**
+After self-review, ask for approval only if the design has not already been approved or materially changed. Recording an approved design in a file does not create another signoff requirement. Report the actual artifact state (inline/written; committed only if explicitly requested and verified).
 
-> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
-
-Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
+If approval is still needed, wait for the user's response. If changes are requested, make them and re-run the self-review. Never interpret silence as approval.
 
 **Implementation:**
 
-- Invoke the writing-plans skill to create a detailed implementation plan
-- Do NOT invoke any other skill. writing-plans is the next step.
+- Use writing-plans for multi-step work that lacks an implementation plan.
+- If an approved detailed plan already exists, proceed with the chosen execution workflow without forcing a new planning round.
 
 ## Key Principles
 
@@ -161,4 +156,4 @@ A browser-based companion for showing mockups, diagrams, and visual options duri
 A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — use the browser.
 
 If they agree to the companion, read the detailed guide before proceeding:
-`skills/brainstorming/visual-companion.md`
+[visual-companion.md](./visual-companion.md) (relative to this skill directory)
