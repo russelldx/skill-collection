@@ -49,7 +49,7 @@ Create your draft file:
 touch article-draft.md
 ```
 
-Open Claude Code from this directory and start writing.
+Open your coding agent from this directory and start writing.
 
 ### Basic Workflow
 
@@ -487,7 +487,7 @@ Ready for the next section!
 
 ## Pro Tips
 
-1. **Work in VS Code**: Better than web Claude for long-form writing
+1. **Work in a local editor with your agent**: Better for long-form writing than a chat-only interface
 2. **One section at a time**: Get feedback incrementally
 3. **Save research separately**: Keep a research.md file
 4. **Version your drafts**: article-v1.md, article-v2.md, etc.

@@ -259,7 +259,7 @@ Done!
 **If reviewer finds issues:**
 - Implementer (same subagent) fixes them
 - Reviewer reviews again
-- Repeat until approved
+- Repeat until approved — cap at 2 review-fix rounds, then stop and escalate to the user
 - Don't skip the re-review
 
 **If subagent fails task:**

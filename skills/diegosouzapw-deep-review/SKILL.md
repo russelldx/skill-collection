@@ -210,7 +210,7 @@ Platform reviewers are **automatically included** when the team lead determines 
 | git-history-reviewer | review | inherit | agents/git-history-reviewer.md |
 | prior-feedback-reviewer | review | inherit | agents/prior-feedback-reviewer.md |
 
-All agents use `subagent_type: "general-purpose"` (needed for file writing).
+All agents use `subagent_type: "general-purpose"` (needed for file writing); map this to your host's equivalent general subagent type if it differs. The table's model column uses tiers — `opus` = most-capable tier, `inherit` = session default (omit the model parameter).
 
 ## Instructions
 

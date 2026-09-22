@@ -1,14 +1,9 @@
-import org.apache.poi.hssf.record.DVRecord;
-import org.apache.poi.hssf.record.Record;
-import org.apache.poi.hssf.usermodel.HSSFDataValidation;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.usermodel.Name;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 
 import java.io.FileInputStream;
-import java.lang.reflect.Field;
 import java.util.List;
 
 /**
@@ -59,38 +54,23 @@ public class DumpStructure {
                     System.out.println(sb);
                 }
                 for (DataValidation dv : sh.getDataValidations()) {
-                    DVRecord record = getDvRecord(dv);
-                    Ptg[] ptgs = record != null ? record.getFormula1() : null;
-                    String formula1 = ptgs != null ? ptgsToString(ptgs) : "<null>";
-                    int type = record != null ? record.getDataType() : -1;
+                    DataValidationConstraint c = dv.getValidationConstraint();
+                    String formula1 = c == null || c.getFormula1() == null ? "<null>" : c.getFormula1();
+                    String formula2 = c == null || c.getFormula2() == null ? "" : c.getFormula2();
+                    String explicit = "";
+                    if (c != null && c.getExplicitListValues() != null) {
+                        explicit = " list=[" + String.join(",", c.getExplicitListValues()) + "]";
+                    }
+                    int type = c == null ? -1 : c.getValidationType();
                     for (CellRangeAddress ra : dv.getRegions().getCellRangeAddresses()) {
                         System.out.println("  DV region=" + ra.formatAsString()
                                 + " type=" + type
-                                + " formula1=[" + formula1 + "]");
+                                + " formula1=[" + formula1 + "]"
+                                + (formula2.isEmpty() ? "" : " formula2=[" + formula2 + "]")
+                                + explicit);
                     }
                 }
             }
-        }
-    }
-
-    private static String ptgsToString(Ptg[] ptgs) {
-        StringBuilder sb = new StringBuilder();
-        for (Ptg ptg : ptgs) {
-            sb.append(ptg.toFormulaString());
-        }
-        return sb.toString();
-    }
-
-    private static DVRecord getDvRecord(DataValidation dv) {
-        if (!(dv instanceof HSSFDataValidation)) {
-            return null;
-        }
-        try {
-            Field f = HSSFDataValidation.class.getDeclaredField("_dvRecord");
-            f.setAccessible(true);
-            return (DVRecord) f.get(dv);
-        } catch (Exception e) {
-            return null;
         }
     }
 
