@@ -3,6 +3,7 @@
 
 CLI: check | dry-run | bind FILE --source ROOT --repo-hash H --source-hash H
      accept FILE --repo-hash H --source-hash H [--divergence]
+     approve FILE --repo-hash H --source-hash H
      apply --file FILE REPO_HASH SOURCE_HASH [--file ...] [--direction export]
 Hashes are SHA-256 of raw bytes, or 'missing'. Bind selects provenance; accept
 records an equal common baseline (or a non-authorizing divergence). Neither
@@ -139,6 +140,20 @@ def git(repo, *args, data=None, allow_missing=False):
     return result.stdout
 
 
+def committed_bytes(repo, data, oid):
+    """Committed worktree bytes; core.autocrlf=true keeps CRLF in a clean text worktree."""
+    if data is None:
+        return False
+    blob = git(repo, "cat-file", "blob", oid)
+    if data == blob:
+        return True
+    if b"\x00" in data[:8000]:
+        return False
+    if git(repo, "config", "--get", "core.autocrlf", allow_missing=True).strip() != b"true":
+        return False
+    return data.replace(b"\r\n", b"\n") == blob
+
+
 def index_entries(repo):
     raw = git(repo, "ls-files", "--stage", "-z")
     entries = {}
@@ -197,6 +212,10 @@ class Sync:
                 baseline = record.get("baseline")
                 if baseline is not None and baseline != MISSING and not re.fullmatch(r"[a-f0-9]{64}", baseline):
                     raise ValueError("invalid baseline")
+                approved = record.get("export_reviewed")
+                if approved is not None and (not isinstance(approved, list) or len(approved) != 2
+                                             or not all(isinstance(value, str) for value in approved)):
+                    raise ValueError("invalid export approval")
             return value
         except (ValueError, KeyError, TypeError) as exc:
             raise SyncError("invalid local state: " + str(exc)) from exc
@@ -369,6 +388,17 @@ class Sync:
                                         diverged=repo_hash != source_hash)
             self.save(state)
 
+    def approve(self, key, repo_hash, source_hash):
+        """Explicit review authorizing one export to a diverged or not-yet-baselined side."""
+        state = self.state()
+        row = self.reviewed(key, state, repo_hash, source_hash)
+        if row["status"] not in {"no-baseline", "diverged"}:
+            raise SyncError("export approval applies only to reviewed divergence: " + key)
+        with self.locked(state):
+            self.reviewed(key, state, repo_hash, source_hash)
+            state["files"][key]["export_reviewed"] = [repo_hash, source_hash]
+            self.save(state)
+
     def clean_repository(self, key):
         name = "skills/" + key
         index, head = index_entries(self.repo), head_entries(self.repo)
@@ -380,13 +410,18 @@ class Sync:
         if entry is None:
             if data is not None:
                 raise SyncError("untracked target: " + key)
-        elif entry[0] not in REGULAR or data != git(self.repo, "cat-file", "blob", entry[1]):
+        elif entry[0] not in REGULAR or not committed_bytes(self.repo, data, entry[1]):
             raise SyncError("unstaged edit/deletion (raw bytes): " + key)
 
     def preflight(self, key, hashes, state, direction):
         row = self.reviewed(key, state, *hashes)
-        required = "import-candidate" if direction == "import" else "repository-only"
-        if not row["bound"] or row["status"] != required:
+        if direction == "import":
+            authorized = row["status"] == "import-candidate"
+        else:
+            approved = state["files"].get(key, {}).get("export_reviewed") == list(hashes)
+            authorized = row["status"] == "repository-only" or (
+                approved and row["status"] in {"no-baseline", "diverged"})
+        if not row["bound"] or not authorized:
             raise SyncError("not an authorized " + direction + " candidate: " + key)
         self.clean_repository(key)
         repo = plain_path(self.repo, "skills/" + key)
@@ -454,6 +489,7 @@ class Sync:
                     if row["repo_hash"] != sha(data) or row["source_hash"] != sha(data):
                         raise SyncError("post-write recheck failed: " + key)
                     updated["files"][key].update(baseline=sha(data), diverged=False)
+                    updated["files"][key].pop("export_reviewed", None)
                 if self.state() != state:
                     raise SyncError("baseline changed before completion")
                 recheck_git()
@@ -532,14 +568,14 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("check", "dry-run", "hook"):
         commands.add_parser(name)
-    for name in ("bind", "accept"):
+    for name in ("bind", "accept", "approve"):
         sub = commands.add_parser(name)
         sub.add_argument("file")
         sub.add_argument("--repo-hash", required=True)
         sub.add_argument("--source-hash", required=True)
         if name == "bind":
             sub.add_argument("--source", type=Path, required=True)
-        else:
+        elif name == "accept":
             sub.add_argument("--divergence", action="store_true")
     apply = commands.add_parser("apply")
     apply.add_argument("--file", nargs=3, action="append", required=True, metavar=("FILE", "REPO_HASH", "SOURCE_HASH"))
@@ -555,6 +591,8 @@ def main(argv=None):
             engine.bind(args.file, args.source, args.repo_hash, args.source_hash)
         elif args.command == "accept":
             engine.accept(args.file, args.repo_hash, args.source_hash, args.divergence)
+        elif args.command == "approve":
+            engine.approve(args.file, args.repo_hash, args.source_hash)
         else:
             reviews = {key: (rh, sh) for key, rh, sh in args.file}
             if len(reviews) != len(args.file):

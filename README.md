@@ -81,7 +81,7 @@ bash validate-skills.sh
 
 验证器检查活动入口、索引覆盖、配置及实际本地 Markdown 链接，不执行登录、上传、hooks 或真实文档修改。具体回归与未验证能力见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
-仓库维护者若同时在本机安装着同名技能，可用 `python sync-skills.py check` 只读对比两侧哈希；同步必须通过显式 `apply` 命令并逐文件复核，提交前的 pre-commit 只做只读校验，不会自动复制、暂存或删除内容。
+仓库维护者若同时在本机安装着同名技能，可用 `python sync-skills.py check` 只读对比两侧哈希；写入必须逐文件审阅、经 `approve` 记录当时双侧哈希后由显式 `apply` 执行（导出要求仓库侧已提交），提交前的 pre-commit 只做只读校验，不会自动复制、暂存或删除内容。
 
 不同 agent 对工具名、MCP、hooks、子代理和 shell 的支持不同。纯文本指令也可能引用宿主特有能力，不能仅凭 `SKILL.md` 存在承诺跨平台完全兼容。
 

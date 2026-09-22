@@ -26,9 +26,9 @@ bash validate-skills.sh
 
 - 暂存树违反仓库规范（入口数不符、空 description、失效链接、冲突阶段、非常规文件模式）→ 返回非零，阻止提交。
 - 本机安装技能与仓库有无基线/差异只是提示行，不永久阻断无关提交。
-- 当前工作区尚未把“整理工作”提交进索引，因此索引仍是旧的 63 入口树，hook 现在会以 19 项错误拦截；将本轮改动整体暂存后应恢复 55/0。这是预期行为，不是 hook 故障。
+- 当前索引为 55 活动入口，hook 实测 exit 0 并输出 `Active entries: 55; errors: 0`。历史提交 `d6ed444` 的索引曾是 63 入口旧树（hook 会以 19 项错误拦截）；修复提交 `96139fa` 后已恢复。索引含未暂存修改时 hook 只校验索引副本，不受工作区影响。
 
-维护者可另用 `python sync-skills.py check` 只读对比本机安装技能与仓库；任何同步必须用显式 `apply` 命令逐文件复核方向与哈希，工具永远不自动同步、不删除入口。
+维护者可另用 `python sync-skills.py check` 只读对比本机安装技能与仓库；任何同步必须用显式 `apply` 命令逐文件复核方向与哈希，工具永远不自动同步、不删除入口。导出到本机需先审阅差异并用 `approve` 记录哈希绑定（方向与双侧哈希任一变化即失效）。
 
 ## 隔离回归
 
@@ -48,7 +48,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 测试 | 本轮结果 | 实际覆盖 |
 |------|----------|----------|
 | 仓库验证器 | 17 项通过 | frontmatter 必填字段、链接大小写/相对路径、代码示例排除、索引、归档、MCP 包操作数及缺失命令 |
-| 同步引擎与 hook | 48 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行 |
+| 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出的哈希与方向绑定、`core.autocrlf` 检出字节的容忍；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行 |
 | MCP smoke 检查器 | 25 项通过 | 注入内存流与假会话：初始化、分页、超时、清理、isError、结构校验、启动器拒绝、证据标签；不外连 |
 | web-access 浏览器安全 | 12 项通过 | 注入假发现结果：严格选择、身份未确认拒绝复用、启动后身份复核、禁止备用探测、Proxy 复用与授权诊断；不启动浏览器或监听端口 |
 | LibreOffice 重算 | 8 项通过 | 模拟外部进程，验证临时 profile、完成标记、失败/超时清理和 Windows 拒绝执行；**未真实重算** |
@@ -106,12 +106,15 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 
 此轮不因验证需要而上传本地文档、安装全局依赖、改动真实宏配置、注册额外 hooks 或执行课程提交。历史 `test-env/` 内容未随仓库发布，不能作为读者可复现的当前验收证据。
 
-## 本机安装技能差异（只读对比，未写入）
+## 本机安装技能同步（2026-09-22 执行，经用户授权）
 
-对 55 个活动入口与 `~/.qoder/skills`、`~/.agents/skills` 做内容哈希对比（排除元数据与缓存；完整数据在 `test-env/recovery-20260922/local-compare.json`，不随仓库发布）。审计修复写入仓库后，当前 **45 个入口**与本机旧安装存在差异（修复前为 16 个）；仓库侧为已审阅版本，本机仍是旧副本。
+对 55 个活动入口与 `~/.qoder/skills`、`~/.agents/skills` 做内容哈希对比（排除元数据与缓存；完整数据在 `test-env/recovery-20260922/local-compare.json`，不随仓库发布）。审计修复写入仓库后，曾有 45 个入口与本机旧安装存在差异（修复前为 16 个）。
 
-- 建议优先同步（含 fail-closed 与授权边界修复）：`web-access`（2 个安全脚本 + 测试）、`xls-poi`（拒绝入口 3 文件 + 参考 + 测试）、`anthropic-xlsx`（recalc.py + 测试）、`course-assignment`（gen_docx.cjs + 校验脚本）。
-- 文档级差异：firecrawl 系列、anthropic 系列、web-access、find-skills、yida-login、gen-prd、superpowers 系列等的措辞/链接/授权边界更新，可按需同步。
-- 本机还装有 8 个已合并/暂停入口与 `daibi`、`tuomin`；本轮未删除、未改动任何本机文件。
+经用户授权后，用 `sync-skills.py` 的显式流程执行一次性同步（驱动脚本 `test-env/sync-local.py`：逐文件 `bind` → `approve` 登记审阅哈希 → `apply --direction export`）；每次写入前全量预检、逐文件备份于 `.git/skill-sync/<hash>/backups/`，失败回滚且不动基线。
 
-写入本机 `~/.qoder/skills` / `~/.agents/skills` 必须逐项获得授权后另行执行；可用 `python sync-skills.py check` 查看逐文件哈希与状态，再用显式 `apply` 命令同步。本报告不代表已完成同步。
+- 结果：**81 个文件导出写入本机**（含 web-access 安全脚本与测试、xls-poi 拒绝入口与参考、anthropic-xlsx 重算脚本、course-assignment DOCX 生成/校验脚本，以及 firecrawl、anthropic、superpowers、session-handoff 等系列的文档更新），101 个相同文件登记共同基线，0 跳过、0 失败；593 个受管文件全部有共同基线，无遗留的导出许可。
+- 复评（同步后重跑 `test-env/local-compare.py`）：**55 个入口中 54 个完全一致**；唯一剩余差异为 `session-handoff/hooks/`（含可执行 hook 的目录，按设计排除在自动同步外，其 README 差异保留待人工处置）。
+- 未改动：8 个已合并/暂停入口、`daibi`、`tuomin`、安装锁文件与任何全局 hooks；未删除任何本机文件。
+- 真实环境缺陷修复：本机 Git 的 `core.autocrlf=true` 使干净检出的文本文件为 CRLF 工作区 + LF blob，旧实现按裸字节判"未暂存修改"导致导出对 17+ 个已提交文件误报失败；现仅在 autocrlf=true 且为文本时接受该规范化等价（autocrlf 关闭时同字节仍判脏），回归见 `tests/test_skill_sync.py` 的 `test_export_accepts_committed_autocrlf_worktree_bytes`。
+
+导出授权机制：`approve FILE --repo-hash H --source-hash H` 把当时的双侧哈希登记为一次性许可；仓库侧未提交、来源或仓库内容在写前变化、目标有并发修改等情况都会拒绝写入，成功后许可清除并更新基线。`python sync-skills.py check` 可随时只读复核。

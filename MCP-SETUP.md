@@ -155,6 +155,11 @@ python -B -W error -m unittest discover -s tests -p test_mcp_smoke.py -v
 | 仓库 Firecrawl 示例 | `missing_environment` | 当前进程无 API Key，未改本机配置 |
 | 当前 claude-mem | 哨兵 search / list_corpora 均 `fetch failed`；小型 Python 源文件 outline 无法解析 | 工具可见不等于 worker/AST 可用；未创建语料库、prime 或写入记忆 |
 
+阻塞根因（2026-09-22 只读诊断，未改任何配置）：
+
+- Firecrawl MCP 401：用户级 `~/.qoder/settings.json` 中该条目为 `npx -y firecrawl-mcp@latest`，未配置环境变量（env 键为空），且当前用户环境不存在 `FIRECRAWL_API_KEY`，服务端因此以无凭据状态调用。修复需用户提供 Key 后二选一：把 `FIRECRAWL_API_KEY` 设为用户环境变量（如 `[Environment]::SetEnvironmentVariable('FIRECRAWL_API_KEY','<key>','User')`），或在该服务配置中声明 `${FIRECRAWL_API_KEY}` 展开并确保变量存在；两者均需重启客户端生效。本轮未复制 CLI 凭据、未改全局配置。
+- claude-mem：`installed_plugins.json` 中查无 claude-mem 条目（顶层仅有 `plugins` 键），worker 不通的修复须按其实际安装方式处理，不在本仓库配置范围。
+
 ## 官方资料
 
 - [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp)

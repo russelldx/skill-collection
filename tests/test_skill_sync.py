@@ -668,6 +668,90 @@ class SyncTests(unittest.TestCase):
             self.assertEqual(0, self.module.main(["apply", *selection]))
         self.assertEqual(NEW, (self.repo / "skills" / KEY).read_bytes())
 
+    def test_export_of_diverged_file_requires_reviewed_approval(self):
+        self.bind()
+        self.put(self.repo / "skills" / KEY, NEW)
+        self.commit_fixture()
+        self.assertEqual("no-baseline", self.status())
+        with self.assertRaises(self.module.SyncError):
+            self.engine.apply({KEY: self.hashes()}, direction="export")
+        self.engine.approve(KEY, *self.hashes())
+        self.engine.apply({KEY: self.hashes()}, direction="export")
+        self.assertEqual(NEW, (self.sources / KEY).read_bytes())
+        self.assertEqual("equal", self.status())
+
+    def test_export_approval_is_hash_and_direction_pinned(self):
+        self.bind()
+        self.put(self.repo / "skills" / KEY, NEW)
+        self.commit_fixture()
+        reviewed = self.hashes()
+        self.engine.approve(KEY, *reviewed)
+        self.put(self.sources / KEY, b"concurrent local edit\n")
+        with self.assertRaises(self.module.SyncError):
+            self.engine.apply({KEY: reviewed}, direction="export")
+        self.engine.approve(KEY, *self.hashes())
+        with self.assertRaises(self.module.SyncError):
+            self.engine.apply({KEY: self.hashes()})
+        self.assertEqual(b"concurrent local edit\n", (self.sources / KEY).read_bytes())
+        self.assertEqual(NEW, (self.repo / "skills" / KEY).read_bytes())
+
+    def test_export_refuses_uncommitted_repository_change(self):
+        self.bind()
+        self.put(self.repo / "skills" / KEY, NEW)
+        self.engine.approve(KEY, *self.hashes())
+        with self.assertRaises(self.module.SyncError):
+            self.engine.apply({KEY: self.hashes()}, direction="export")
+        self.assertEqual(BASE, (self.sources / KEY).read_bytes())
+
+    def test_export_accepts_committed_autocrlf_worktree_bytes(self):
+        # With core.autocrlf=true Git keeps CRLF in the worktree while committing LF
+        # blobs; such a worktree is clean and must not be treated as an unstaged edit.
+        self.accept()
+        updated = b"committed update\n"
+        self.git("config", "core.autocrlf", "true")
+        self.put(self.repo / "skills" / KEY, updated)
+        self.commit_fixture()
+        crlf = updated.replace(b"\n", b"\r\n")
+        self.put(self.repo / "skills" / KEY, crlf)
+        self.assertEqual("repository-only", self.status())
+        self.git("config", "core.autocrlf", "false")
+        with self.assertRaises(self.module.SyncError):
+            self.engine.apply({KEY: self.hashes()}, direction="export")
+        self.git("config", "core.autocrlf", "true")
+        self.engine.apply({KEY: self.hashes()}, direction="export")
+        self.assertEqual(crlf, (self.sources / KEY).read_bytes())
+
+    def test_export_approval_rejects_equal_state(self):
+        self.bind()
+        self.put(self.repo / "skills" / KEY, NEW)
+        self.commit_fixture()
+        self.engine.approve(KEY, *self.hashes())
+        self.engine.apply({KEY: self.hashes()}, direction="export")
+        with self.assertRaises(self.module.SyncError):
+            self.engine.approve(KEY, *self.hashes())
+
+    def test_reviewed_export_creates_missing_destination_file(self):
+        self.put(self.repo / "skills/sample/references/extra.md", NEW)
+        self.commit_fixture()
+        key = "sample/references/extra.md"
+        (self.sources / "sample/references").mkdir()
+        self.engine.bind(key, self.sources, *self.hashes(key))
+        self.assertEqual("no-baseline", self.status(key))
+        self.engine.approve(key, *self.hashes(key))
+        self.engine.apply({key: self.hashes(key)}, direction="export")
+        self.assertEqual(NEW, (self.sources / "sample/references/extra.md").read_bytes())
+        self.assertEqual("equal", self.status(key))
+
+    def test_export_backup_contains_previous_destination_bytes(self):
+        self.bind()
+        self.put(self.repo / "skills" / KEY, NEW)
+        self.commit_fixture()
+        self.engine.approve(KEY, *self.hashes())
+        report = self.engine.apply({KEY: self.hashes()}, direction="export")
+        self.assertEqual([KEY], report["written"])
+        manifest = json.loads((Path(report["backup"]) / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(BASE, (Path(report["backup"]) / manifest["files"][KEY]["blob"]).read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()
