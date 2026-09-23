@@ -23,10 +23,11 @@ The Skills CLI (`npx skills`) is the package manager for the open agent skills e
 
 **Key commands:**
 
-- `npx skills find [query]` - Search for skills interactively or by keyword
-- `npx skills add <package>` - Install a skill from GitHub or other sources
-- `npx skills check` - Check for skill updates
-- `npx skills update` - Update all installed skills
+- `npx skills find [query] [--owner <owner>]` - Search by keyword, optionally scoped to a GitHub owner
+- `npx skills add <package>` - Install a selected skill from GitHub or other sources
+- `npx skills update` - Update all installed skills; not a substitute for reviewing local changes
+
+Use the installed CLI's help to confirm command support. Do not run a global update to refresh one selected skill or overwrite a customized collection. Compare the selected upstream version with local changes, preserve local fixes, and obtain approval for the installation target and replacements first.
 
 **Browse skills at:** https://skills.sh/
 
@@ -53,16 +54,17 @@ For example, top skills for web development include:
 If the leaderboard doesn't cover the user's need, run the find command:
 
 ```bash
-npx skills find [query]
+npx skills find [query] [--owner <owner>]
 ```
 
-`npx` downloads and executes the Skills CLI package. If it is not already installed or approved in this environment, say so and get the user's approval before the first run; prefer an already installed `skills` CLI when present.
+`npx` downloads and executes the Skills CLI package. If it is not already installed or approved in this environment, say so and get the user's approval before the first run; prefer an already installed `skills` CLI when present. Check that version's help before using `--owner`; if unsupported, report the limitation rather than silently downloading an upgrade.
 
 For example, when the user asks for skill discovery:
 
 - User asks "find a skill for React performance" → `npx skills find react performance`
 - User asks "is there a skill for PR reviews?" → `npx skills find pr review`
 - User asks "search for a changelog skill" → `npx skills find changelog`
+- User asks "find React skills from vercel-labs" → `npx skills find react --owner vercel-labs`
 
 ### Step 4: Verify Quality Before Recommending
 

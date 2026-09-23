@@ -18,20 +18,11 @@ For application integration, start with [firecrawl-build-onboarding](../firecraw
 
 ## Prerequisites
 
-Must be installed and authenticated. Check with `firecrawl --status`.
+Start with `firecrawl --version` and `firecrawl --help`. Confirm that a command appears in the installed command list and that its own help documents the required options. An unknown command printing the general help is not evidence that the command exists.
 
-```
-  🔥 firecrawl cli v1.8.0
+Provider discovery and execution require support for the relevant `search`, `list`, and `scrape --options` forms. Do not assume an older CLI supports them because current upstream documentation does. If unsupported, report the limitation and use the ordinary page workflow where it still answers the request; changing interfaces or upgrading dependencies needs appropriate authorization. For a selected MCP or SDK interface, check its actual schema or versioned documentation instead of translating CLI flags.
 
-  ● Authenticated via FIRECRAWL_API_KEY
-  Concurrency: 0/100 jobs (parallel scrape limit)
-  Credits: 500,000 remaining
-```
-
-- **Concurrency**: Max parallel jobs. Run parallel operations up to this limit.
-- **Credits**: Remaining API credits. Each operation consumes credits.
-
-If not ready, see [rules/install.md](rules/install.md). For output handling guidelines, see [rules/security.md](rules/security.md).
+When service access is authorized, `firecrawl --status` checks authentication, concurrency, and remaining credits. Bound parallel work by both the reported concurrency and the user's scope/budget. If setup is missing, see [rules/install.md](rules/install.md); do not automatically install, upgrade, or log in.
 
 Status is not end-to-end verification. If the user authorizes a live smoke test, use one small in-scope request and report the actual result; do not fetch an unrelated site automatically or install/authenticate as a side effect of diagnosis.
 
@@ -48,12 +39,20 @@ firecrawl search "query" --scrape --limit 3 -o .firecrawl/search-content.json
 
 Use `firecrawl search --help` for the installed CLI's options. For code integration rather than CLI use, see [onboarding endpoint selection](../firecrawl-build-onboarding/SKILL.md#endpoint-selection).
 
+### Structured provider discovery
+
+For structured records across several entities or pages, first check whether the selected interface can discover a suitable provider or workflow. In CLI versions that support this path, normal search can return web results and tool matches; `firecrawl search alexandria "<data needed>"` searches the tool catalogue. Do not use that form when the installed help does not document it.
+
+If the returned contract is incomplete, inspect only the selected provider/capability with the supported `list` command. Discovery is not execution or authorization. Compare the contract's coverage, inputs, costs, and side effects with the request; a domain match alone is insufficient. See [provider execution](../firecrawl-scrape/SKILL.md#structured-provider-execution) for the next step. Reuse an already inspected contract rather than repeating discovery.
+
+If plain web results already answer the question, use them. For a known page, scrape directly. If provider discovery is unavailable or no match fits, say so and continue with the applicable ordinary page or agent workflow within the original scope.
+
 ## Workflow
 
 Follow this escalation pattern:
 
-1. **Search** - No specific URL yet. Find pages, answer questions, discover sources.
-2. **Scrape** - Have a URL. Extract its content directly.
+1. **Search** - No specific URL yet. Find pages, answer questions, discover sources; inspect suitable provider contracts for structured data when supported.
+2. **Scrape** - Have a URL. Extract its content directly. A selected provider capability uses the separate, supported execution form after contract and authorization checks.
 3. **Map + Scrape** - Large site or need a specific subpage. Use `map --search` to find the right URL, then scrape it.
 4. **Crawl** - Need bulk content from an entire site section (e.g., all /docs/).
 5. **Interact** - Scrape first, then interact with the page (pagination, modals, form submissions, multi-step navigation).
@@ -61,6 +60,7 @@ Follow this escalation pattern:
 | Need                        | Command               | When                                                      |
 | --------------------------- | --------------------- | --------------------------------------------------------- |
 | Find pages on a topic       | `search`              | No specific URL yet                                       |
+| Structured provider data   | `search` → `list` → `scrape` | Only with supported commands and an inspected matching contract |
 | Get a page's content        | `scrape`              | Have a URL, page is static or JS-rendered                 |
 | Find URLs within a site     | `map`                 | Need to locate a specific subpage                         |
 | Bulk extract a site section | `crawl`               | Need many pages (e.g., all /docs/)                        |

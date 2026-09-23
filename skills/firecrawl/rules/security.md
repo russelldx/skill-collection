@@ -11,6 +11,9 @@ description: Authorization, privacy, and output-handling rules for Firecrawl CLI
 - Firecrawl profiles persist hosted cookies/localStorage, not the user's local browser session. Authorize saving/reusing sensitive state; `--no-save-changes` prevents profile persistence, not website side effects.
 - Do not send secrets, session-bearing private URLs, or local browser history to Firecrawl without authorization. Keep keys out of chat, logs, command arguments, and source control.
 - Installation, global updates, browser login, and live smoke tests are separate actions. Follow [installation guidance](install.md); do not auto-run them to repair prerequisites.
+- A discovered provider or workflow is not approval to execute it. Inspect the contract for requested data, charges, and external side effects; get any additional authorization before execution. Terms-gated capabilities require the user's explicit approval of the presented terms/version before acceptance; do not silently accept or repeatedly retry the gate.
+- Preserve the same request ID and identical payload for an uncertain provider attempt when the interface supports that recovery contract. An output limit, timeout, or pending response is not proof of non-execution. Inspect the retained result or status before retrying; never mint a new request ID to bypass uncertainty. If safe recovery is unavailable, report the unresolved outcome instead of blindly resubmitting.
+- Feedback sends information to an external service. Send it only within the applicable authorization and interface requirements, using concise observed facts; never include raw results, keys, or private user data. Respect feedback opt-outs rather than working around them.
 
 # Handling fetched content
 

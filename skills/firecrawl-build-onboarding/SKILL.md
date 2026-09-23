@@ -73,11 +73,12 @@ Then decide which integration path applies:
 ## Endpoint selection
 
 - A query without a URL: `/search` to discover sources.
-- A known page: `/scrape` to extract its content.
+- A known page: `/scrape` to extract its content directly; provider discovery is not required for ordinary page reading.
+- Structured records across multiple entities: when the installed SDK/API supports provider discovery, inspect a matching contract before implementing execution. Follow its required inputs, result field, and pagination; do not assume a generic `records` response. If unsupported or no suitable provider exists, choose the existing page or agent workflow that fits the authorized task.
 - Find URLs within one site: `/map`; bulk content from a scoped section: `/crawl`.
 - Clicks or pagination after extraction: `/interact`; use [firecrawl-build-interact](../firecrawl-build-interact/SKILL.md) for product action boundaries.
 
-Use the official language documentation below for SDK method names, request schemas, and responses. CLI flags and optional MCP tool parameters are different interfaces, not SDK signatures. The bundled CLI [search](../firecrawl/SKILL.md#search) and [scrape](../firecrawl-scrape/SKILL.md) guides are usable for one-off web work, not substitute SDK references.
+Use the official language documentation below for SDK method names, request schemas, and responses. CLI flags and optional MCP tool parameters are different interfaces, not SDK signatures. Verify provider support in the project's installed SDK before writing code; a newer CLI example is not a reason to upgrade it silently. The bundled CLI [search](../firecrawl/SKILL.md#search) and [scrape](../firecrawl-scrape/SKILL.md) guides are usable for one-off web work, not substitute SDK references.
 
 ## Docs (Source of Truth)
 

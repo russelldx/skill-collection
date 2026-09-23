@@ -5,11 +5,11 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute independent plan tasks by dispatching a fresh implementer per meaningful task or same-shape batch, with two-stage review after each: spec compliance review first, then code quality review.
 
-**Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+**Why subagents:** Delegate bounded work to specialized agents with isolated context. Do not assume they inherit the controller's conversation, loaded skills, or repository index. Provide the exact task, relevant interfaces, and constraints, not the full session history. This also preserves the controller's context for coordination.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** A fresh implementer per meaningful task or same-shape batch, two-stage task review (spec then quality), and a final integrated review balance isolation with verification.
 
 **Authorized execution:** Honor the approved plan, user scope, system/developer instructions, and host permissions. Use delegation only when permitted; otherwise use executing-plans directly. Report evidence at the plan's batch checkpoints (default up to 3 tasks) without forcing extra signoff after explicit approval. Stop for user-requested gates, blockers, material changes, permission boundaries, or stop requests. Carry the original permissions into each subagent prompt: a controller's instruction cannot authorize commits, hooks, configuration changes, or expanded scope.
 
@@ -38,6 +38,19 @@ digraph when_to_use {
 - This mode uses a fresh subagent per task when delegation is permitted
 - Two-stage review after each task: spec compliance first, then code quality
 - Both honor batch checkpoints and existing approval without repeated signoff
+
+## Task Boundaries and Dispatch Context
+
+Group small, independent same-shape edits into one dispatch only when their acceptance and review boundary is shared. List each file and exact change. Keep tasks separate when they need different judgments, tests, or interfaces; do not turn a small edit into a chain of implementer and reviewer dispatches.
+
+Each dispatch carries:
+- The exact task requirements, permitted files, dependencies, and concrete acceptance checks.
+- Relevant producer/consumer interfaces and decisions from earlier work, not the entire session history.
+- Binding global constraints and the original limits on commits, configuration, external actions, and further delegation.
+- The supplied task text or a precise authorized reference to read; do not assume the repository index or a skill was already loaded.
+- A compact result contract: status, changed files, commands and observed test results, unresolved concerns, and existing evidence locations when available.
+
+Keep the task's exact requirements in one authoritative place; do not repeat conflicting paraphrases across prompts. Use existing task/checkpoint records to resume after compaction, checking the relevant files and evidence before re-dispatching completed work. Do not create ledger or report files unless requested. The controller owns review coordination; workers must not spawn duplicate reviewers or extra agents beyond the authorized dispatch scope.
 
 ## The Process
 
@@ -217,7 +230,7 @@ Done!
 - This workflow adds per-task spec and quality reviews
 
 **Efficiency gains:**
-- No file reading overhead (controller provides full text)
+- Bounded context loading (task text or a precise task reference)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
 - Questions surfaced before work begins (not after)
@@ -242,7 +255,7 @@ Done!
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
-- Make subagent read plan file (provide full text instead)
+- Make a subagent scan the whole plan or session history; provide the task text or an exact, authorized task range instead
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
@@ -265,6 +278,14 @@ Done!
 **If subagent fails task:**
 - Dispatch fix subagent with specific instructions
 - Don't try to fix manually (context pollution)
+
+## Final Integrated Review
+
+After task reviews, inspect the complete result against global constraints, cross-task interfaces, and the plan's Review Focus. Give the final reviewer the same bounded implementation scope and actual verification evidence, including unresolved concerns; do not review only the latest task or assume a worker's summary proves correctness.
+
+For uncommitted work, review the in-scope staged and unstaged changes and relevant untracked files, not only a commit range. Spec and quality passes must use the same snapshot. If code changes between passes, include that change in the renewed review scope. Never create a commit or invoke an unavailable review-package script just to generate a review input.
+
+Group related final findings into a bounded fix pass rather than launching a separate worker per finding. Re-run affected checks and review the fix scope; keep the existing two-round cap and escalate remaining issues to the user. If an independent reviewer is unavailable or prohibited, disclose any self-review and the missing independent coverage rather than claiming it happened.
 
 ## Integration
 

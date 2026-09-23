@@ -19,10 +19,10 @@
 | Skill | 用途 | 使用边界 |
 |-------|------|----------|
 | [superpowers-brainstorming](skills/superpowers-brainstorming/SKILL.md) | 澄清复杂或开放性设计 | 按需，明确的小任务或已批准详细方案不重复审批 |
-| [superpowers-writing-plans](skills/superpowers-writing-plans/SKILL.md) | 把需求落实为实施步骤 | 多步骤任务，是否写计划文件遵循用户要求 |
-| [superpowers-executing-plans](skills/superpowers-executing-plans/SKILL.md) | 执行已批准方案 | 分批检查，遇到实质偏差再确认 |
+| [superpowers-writing-plans](skills/superpowers-writing-plans/SKILL.md) | 按可验收成果划任务、定义接口与验证重点 | 多步骤任务，是否写计划文件遵循用户要求 |
+| [superpowers-executing-plans](skills/superpowers-executing-plans/SKILL.md) | 直接执行已批准方案，保留批次证据与整体审查 | 尊重执行模式，遇到实质偏差或权限边界再确认 |
 | [superpowers-test-driven-development](skills/superpowers-test-driven-development/SKILL.md) | 红→绿→重构 | 不授予删除既有工作或绕过权限的授权 |
-| [superpowers-subagent-driven-development](skills/superpowers-subagent-driven-development/SKILL.md) | 子代理实施和分阶段审查 | 按需，需要宿主子代理能力 |
+| [superpowers-subagent-driven-development](skills/superpowers-subagent-driven-development/SKILL.md) | 按任务或同形批次委派，分阶段及整体审查 | 需宿主子代理能力；不假定继承上下文，修复评审最多两轮 |
 | [superpowers-dispatching-parallel-agents](skills/superpowers-dispatching-parallel-agents/SKILL.md) | 独立任务分治 | 按需，共享文件或有依赖的任务不盲目并行 |
 | [superpowers-systematic-debugging](skills/superpowers-systematic-debugging/SKILL.md) | 根因调试与性能回归诊断 | 已吸收 diagnosing-bugs 的复现、假设排序和测量方法 |
 | [superpowers-using-git-worktrees](skills/superpowers-using-git-worktrees/SKILL.md) | 隔离开发环境 | 按需；安装依赖、提交和清理仍须对应授权 |
@@ -54,17 +54,17 @@
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
 | [web-access](skills/web-access/SKILL.md) | 本机登录态、CDP、书签/历史、站点经验 | Node.js 22+；历史另需 sqlite3 CLI；不依赖 Chrome DevTools MCP |
-| [firecrawl](skills/firecrawl/SKILL.md) | Firecrawl CLI 总入口和命令分流 | CLI 与认证；MCP 是可选接口，不是 CLI 验证的替代 |
-| [firecrawl-scrape](skills/firecrawl-scrape/SKILL.md) | 已知页面提取 | 选择 Firecrawl 路线时使用，不垄断所有网页读取 |
+| [firecrawl](skills/firecrawl/SKILL.md) | CLI 分流及结构化数据提供方发现 | 先检查版本和命令能力；MCP 是不同接口，不代替 CLI 验证 |
+| [firecrawl-scrape](skills/firecrawl-scrape/SKILL.md) | 已知页面提取或已确认的数据提供方执行 | 选择 Firecrawl 时使用；提供方须接口支持、契约匹配与授权 |
 | [firecrawl-crawl](skills/firecrawl-crawl/SKILL.md) | 多页或站点批量提取 | 控制范围与额度 |
 | [firecrawl-map](skills/firecrawl-map/SKILL.md) | URL 发现与枚举 | 不等于读取每一页正文 |
-| [firecrawl-agent](skills/firecrawl-agent/SKILL.md) | 异步结构化研究 | 按需，检查终态、输出和额度 |
+| [firecrawl-agent](skills/firecrawl-agent/SKILL.md) | 异步结构化研究与已有任务查询 | 有界等待，检查终态、实际数据与额度，不重复提交未决任务 |
 | [firecrawl-interact](skills/firecrawl-interact/SKILL.md) | 云端浏览器交互 | 支持登录及 profile，但不自动继承本机登录态 |
 | [firecrawl-download](skills/firecrawl-download/SKILL.md) | 网站保存为本地文件 | 按需，实验性命令以实际 CLI 版本为准 |
 | [firecrawl-parse](skills/firecrawl-parse/SKILL.md) | Firecrawl 文档解析 | 按需，托管模式上传前明确确认；敏感本地文档优先本地处理 |
 | [firecrawl-build-interact](skills/firecrawl-build-interact/SKILL.md) | 将 interact 集成到产品代码 | 按需，不等同于直接操作网页 |
-| [firecrawl-build-onboarding](skills/firecrawl-build-onboarding/SKILL.md) | 项目 SDK / 凭据接入 | 按需，不自动全局安装或提交密钥 |
-| [find-skills](skills/find-skills/SKILL.md) | 发现适用技能 | 需要联网和 CLI；安装量不是安全审核 |
+| [firecrawl-build-onboarding](skills/firecrawl-build-onboarding/SKILL.md) | 项目 SDK / 凭据接入与端点选择 | 检查 SDK 契约支持，不自动升级、全局安装或提交密钥 |
+| [find-skills](skills/find-skills/SKILL.md) | 按关键词或支持的作者筛选发现技能 | 下载执行须授权；安装量不是安全审核，不全量覆盖定制 |
 | [yida-login](skills/yida-login/SKILL.md) | 宜搭登录态管理 | 按需，OpenYida CLI；先检查已有登录态 |
 
 Firecrawl 共 10 个独立入口；搜索说明在 `firecrawl` 主技能，不存在单独的 `firecrawl-search` 目录。
@@ -84,7 +84,7 @@ Firecrawl 共 10 个独立入口；搜索说明在 `firecrawl` 主技能，不�
 |-------|------|-------------|
 | [anthropic-claude-api](skills/anthropic-claude-api/SKILL.md) | Claude API / Anthropic SDK 参考 | 仅明确的供应商 API 任务触发，不接管普通总结或其他供应商代码 |
 | [anthropic-mcp-builder](skills/anthropic-mcp-builder/SKILL.md) | MCP 服务端设计和评测 | 按语言选择运行时 / SDK |
-| [claude-mem-mem-search](skills/claude-mem-mem-search/SKILL.md) | 历史 observation 三层检索 | 需相应 MCP 工具 |
+| [claude-mem-mem-search](skills/claude-mem-mem-search/SKILL.md) | 三层过滤检索，必要时取原始工具证据 | 第四层须实际暴露 get_tool_uses；无工具或 ID 时不伪造证据 |
 | [claude-mem-smart-explore](skills/claude-mem-smart-explore/SKILL.md) | 当前源码 AST 探索 | 需相应 MCP 工具；显式全文模式必须限制范围和预算 |
 | [claude-mem-knowledge-agent](skills/claude-mem-knowledge-agent/SKILL.md) | 专题语料库与持续问答 | 按需，需相应语料库工具，不假定所有版本均提供 |
 

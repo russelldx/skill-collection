@@ -32,6 +32,12 @@ Before defining tasks, map out which files will be created or modified and what 
 
 This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
 
+## Task Right-Sizing
+
+Make a task the smallest independently verifiable deliverable, not every small edit or shell command. Include the setup, documentation, and tests needed by that deliverable in the same task. Split where one result can meaningfully pass acceptance while another fails. Group small same-shape changes when they share a test/review boundary; keep work requiring different judgments or interfaces separate.
+
+Name producer/consumer interfaces and file overlap explicitly so execution can respect dependencies instead of assuming all tasks are parallel-safe. Steps inside each task can remain bite-sized.
+
 ## Bite-Sized Task Granularity
 
 **Each step is one action (2-5 minutes):**
@@ -56,8 +62,18 @@ This structure informs the task decomposition. Each task should produce self-con
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Requirements source:** [Existing spec path or the approved requirements in the conversation; do not invent a spec file]
+
 ---
 ```
+
+## Global Constraints and Review Focus
+
+Carry binding requirements into the plan: exact values and formats, shared interfaces, data boundaries, permitted files/actions, and explicit non-goals. Distinguish required behavior from implementation suggestions. A requirement to implement a feature does not authorize a new dependency, permission change, or external action outside the approved scope.
+
+For each task that consumes an earlier result, state what is produced and what the consumer expects, including names, types, and failure behavior. Resolve contradictions before dependent work starts; ask the user when the resolution changes requirements or authorization.
+
+List up to five highest-impact input classes or failure modes that the current tests would miss. Link each to its owning task and concrete verification, adding the needed tests to that task. An empty Review Focus means coverage was checked and no gaps were found, not that review was skipped. Keep this in the existing plan or conversation; do not create extra documents unless requested.
 
 ## Task Structure
 
@@ -130,14 +146,16 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
+**4. Review Focus:** Does each listed failure mode have a concrete verification in its owning task? Check that global constraints and cross-task interfaces also have coverage; do not leave the list as risks with no acceptance check.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
 ## Execution Handoff
 
 After preparing the plan, honor any execution choice and implementation approval already given. Do not force another signoff for an explicitly approved detailed spec/plan. For planning-only requests, return the plan and wait for implementation authorization.
 
-If a choice is still needed, offer:
-1. **Direct execution (current session or optional new session):** use `superpowers:executing-plans`, with the plan's batch size or up to 3 tasks per batch by default.
-2. **Subagent-driven:** use `superpowers:subagent-driven-development` only if delegation is permitted and suitable, with per-task spec and quality review.
+If a choice is still needed, recommend an approach using the plan's interface coupling, task size, and the cost of a missed defect:
+1. **Direct execution (current session or optional new session):** use `superpowers:executing-plans`, with the plan's batch size or up to 3 tasks per batch by default. Prefer this when context is shared heavily or delegation overhead exceeds its benefit.
+2. **Subagent-driven:** use `superpowers:subagent-driven-development` only if delegation is permitted and suitable, with task-scoped spec and quality review plus final integrated review. Group small same-shape work rather than allocating a worker per mechanical step.
 
-Both modes report completed tasks, test commands/results, remaining work, and blockers at batch checkpoints. Checkpoints are informational, not mandatory extra signoffs after explicit approval. Pause only for user-requested gates, blockers, material plan changes, new sensitive actions, or a stop request. A new session loads the same plan and last checkpoint; it is never required just to execute a plan.
+Honor a supplied choice without asking again. Both modes report completed tasks, test commands/results, remaining work, and blockers at batch checkpoints. Checkpoints are informational, not mandatory extra signoffs after explicit approval. Pause only for user-requested gates, blockers, material plan changes, new sensitive actions, or a stop request. A new session loads the same plan and last checkpoint; it is never required just to execute a plan.
