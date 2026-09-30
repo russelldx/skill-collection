@@ -10,6 +10,7 @@ Skill 是流程说明，MCP 和 CLI 是执行接口。仓库中的 [.mcp.json](.
 | 浏览器控制 | Chrome DevTools MCP；连接现有浏览器和独立 profile 是不同模式 | 可供 `course-assignment` 等流程选用 |
 | 本机 CDP / 书签 / 历史 | `web-access` 自带 Node.js CDP Proxy，不要求 Chrome DevTools MCP | `web-access` |
 | 持久记忆 / 结构化探索 | 官方 claude-mem 插件及其 MCP，不能使用虚构 npm 包代替 | 3 个活动 `claude-mem-*` 技能 |
+| 数据库操作（可选） | 后端开发需要时推荐 [DBX](https://github.com/t8y2/dbx) 及其 MCP 包 `@dbx-app/mcp-server`（README 含中文说明）；连接与权限由 DBX 应用管理，凭据不进配置文件 | 仓库暂无依赖技能，按需自取 |
 
 只配置当前任务需要的服务。修改客户端配置、安装插件或全局包、登录账户均须授权；不要把密钥直接写进版本控制文件。
 
@@ -170,6 +171,7 @@ python -B -W error -m unittest discover -s tests -p test_mcp_smoke.py -v
 - [连接已有 Chrome](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/advanced-usage.md)
 - [Firecrawl CLI](https://github.com/firecrawl/cli)
 - [claude-mem](https://github.com/thedotmack/claude-mem)
+- [DBX MCP Server](https://github.com/t8y2/dbx/tree/main/packages/mcp-server)
 - [Qoder CLI MCP 配置](https://docs.qoder.com/cli/mcp-reference.md)
 - [Qoder IDE MCP](https://docs.qoder.com/user-guide/chat/model-context-protocol.md)
 - [Qoder CLI 发布说明](https://docs.qoder.com/release-notes/qoder-cli.md)
