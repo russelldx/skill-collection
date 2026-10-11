@@ -3,70 +3,60 @@ name: firecrawl-agent
 description: Use the Firecrawl CLI agent for AI-powered multi-page structured extraction when Firecrawl is selected. Navigate sites and extract pricing, products, directory entries, or other data as JSON with a schema. Use within the user's authorized domains, data scope, and credit budget; this is not a requirement to install Firecrawl MCP.
 allowed-tools:
   - Bash(firecrawl *)
-  - Bash(npx firecrawl *)
+  - Bash(npx firecrawl-cli *)
 ---
 
 # firecrawl agent
 
 AI-powered autonomous extraction. The agent navigates sites and extracts structured data (takes 2-5 minutes).
 
-This is the Firecrawl CLI interface; optional MCP tools use different schemas. Follow the [security rules](../firecrawl/rules/security.md), bound target domains and credits, and do not authorize account actions or private-data uploads through an extraction prompt implicitly.
-
-## When to use
-
-- You need structured data from complex multi-page sites
-- Manual scraping would require navigating many pages
-- You want the AI to figure out where the data lives
-
-Before autonomous extraction of structured records, consider [provider discovery](../firecrawl/SKILL.md#structured-provider-discovery) if the chosen interface supports it. Prefer an inspected, suitable provider when it covers the task; use Agent when no match fits or autonomous navigation is needed. Do not auto-install provider support or expand the user's data scope.
+Before starting autonomous extraction for structured records or listings, check `firecrawl search alexandria '<data you need>'` for a ready-made workflow or data provider. Inspect a matching contract with `firecrawl list <provider> <capability> --pretty` and execute with `firecrawl scrape --alexandria <provider>/<capability> --options '<input JSON>'` if it covers the task. Use the exact provider, capability, and input fields from that contract. Continue with Agent when no suitable tool exists or the task requires autonomous navigation.
 
 ## Quick start
 
-Check `firecrawl agent --help` for supported options. Scope the prompt and URLs to the actual request and set `--max-credits` to the user's budget when applicable. In versions supporting JSON output and bounded waiting:
-
 ```bash
-# Extract structured data with a bounded wait
-firecrawl agent "extract all pricing tiers" --wait --timeout 300 --json -o .firecrawl/pricing.json
+# Extract structured data
+firecrawl agent "extract all pricing tiers" --wait --json -o .firecrawl/pricing.json
 
 # With a JSON schema for structured output
-firecrawl agent "extract products" --schema '{"type":"object","properties":{"name":{"type":"string"},"price":{"type":"number"}}}' --wait --timeout 300 --json -o .firecrawl/products.json
+firecrawl agent "extract products" --schema '{"type":"object","properties":{"name":{"type":"string"},"price":{"type":"number"}}}' --wait --json -o .firecrawl/products.json
 
 # Focus on specific pages
-firecrawl agent "get feature list" --urls "<url>" --wait --timeout 300 --json -o .firecrawl/features.json
+firecrawl agent "get feature list" --urls "<url>" --wait --json -o .firecrawl/features.json
 ```
 
-## Options
+Run `firecrawl agent --help` for the full option list.
 
-| Option                 | Description                               |
-| ---------------------- | ----------------------------------------- |
-| `--urls <urls>`        | Starting URLs for the agent               |
-| `--model <model>`      | Model to use: spark-1-mini or spark-1-pro |
-| `--schema <json>`      | JSON schema for structured output         |
-| `--schema-file <path>` | Path to JSON schema file                  |
-| `--max-credits <n>`    | Credit limit for this agent run           |
-| `--wait`               | Wait for agent to complete                |
-| `--timeout <seconds>`  | Bound waiting; not a cancellation or credit limit |
-| `--poll-interval <seconds>` | Interval while waiting on a job       |
-| `--json`               | Request machine-readable output           |
-| `--pretty`             | Pretty print JSON output                  |
-| `-o, --output <path>`  | Output file path                          |
+**Done when:** the output file contains valid JSON answering the request — or a job ID was intentionally returned for later polling.
 
-## Existing jobs and completion
+## Alexandria providers
 
-Omit `--wait` when returning a job ID is appropriate; report the job as pending, not completed. Record the returned ID. For versions whose help supports these forms, query or wait on that existing job rather than submitting the extraction prompt again:
+A run uses connected Alexandria data providers only when it starts with an Alexandria flag: `--alexandria`, `--toolkits <slugs>` (up to 5), `--max-calls <n>`, `--require-approval`, or `--on-terms-required skip|ask`. Follow-ups on its thread keep those settings.
 
 ```bash
-firecrawl agent "<returned-job-id>" --status --json
-firecrawl agent "<returned-job-id>" --wait --poll-interval 10 --timeout 300 --json -o .firecrawl/result.json
+firecrawl agent "find the head of sales at <company>" --toolkits apollo,crunchbase --wait --json -o .firecrawl/contacts.json
 ```
 
-A waiting timeout does not prove cancellation or stop future charges. Preserve the job ID and inspect its status; if a submission's outcome is unknown, resolve that outcome before any new submission. Do not cancel jobs without authorization and confirmed command support.
+With `--require-approval` (needs `--mode chat`), a run can end on a `pendingApproval` instead of making a paid call. Ask the user, then answer it on the same thread with `firecrawl agent "<follow-up prompt>" --thread <threadId> --mode chat --approve <approvalId>` (or `--decline <approvalId>`). A `terms` approval only continues once the provider's terms are accepted for the organization, either in the dashboard or by showing the user `firecrawl alexandria terms show <provider>` and, only after they explicitly agree, running `firecrawl alexandria terms accept <provider> --terms-version <version> --digest <digest> --confirm` with the version and digest it returned. Approving does not accept them.
 
-Completion requires a terminal success state and inspected output that answers the request. A valid JSON file may contain only a job ID, status, or error; verify the actual records and requested schema before claiming a completed extraction. Report failed or partial results as such.
+## Job IDs
+
+Omitting `--wait` returns a job ID. A UUID positional argument is auto-detected as a status check:
+
+```bash
+# Check once (equivalent to adding --status)
+firecrawl agent "<job-id>"
+
+# Wait on an existing job, polling every 10 seconds for up to 5 minutes
+firecrawl agent "<job-id>" --wait --poll-interval 10 --timeout 300
+
+# Cancel an active job
+firecrawl agent "<job-id>" --cancel
+```
 
 ## Tips
 
-- Choose bounded `--wait` or return the actual job ID according to the user's needs and host execution limits; do not wait indefinitely.
+- Use `--wait` for inline results; omit it only when you want a job ID to poll later (see [Job IDs](#job-ids)).
 - Use `--schema` for predictable, structured output — otherwise the agent returns freeform data.
 - Agent runs consume more credits than simple scrapes. Use `--max-credits` to cap spending.
 - For simple single-page extraction, prefer `scrape` — it's faster and cheaper.
@@ -76,3 +66,8 @@ Completion requires a terminal success state and inspected output that answers t
 - [firecrawl-scrape](../firecrawl-scrape/SKILL.md) — simpler single-page extraction
 - [firecrawl-interact](../firecrawl-interact/SKILL.md) — scrape + interact for manual page interaction (more control)
 - [firecrawl-crawl](../firecrawl-crawl/SKILL.md) — bulk extraction without AI
+- [firecrawl-build-scrape](https://github.com/firecrawl/skills/tree/main/skills/build/firecrawl-build-scrape) — building structured extraction into an app instead of running it here
+
+## Alexandria session feedback
+
+To report an Alexandria session outcome or a provider/capability gap, use `firecrawl alexandria feedback --rating good|partial|bad --url <website> --requested-functionality '<what was needed>' --objective '<the underlying goal of the task>' --rationale '<what happened>' --json`. Use observed results in the rationale. No job ID is needed; send it within 20 minutes of your last Alexandria search, discovery, or execution, or it is rejected. Each submission refunds 1 credit, up to 10 per website and 100 per team each UTC day. Optional `--provider-feedback` and `--capability-feedback` JSON arrays describe specific gaps; inspect `firecrawl alexandria feedback --help` for their fields. Use the capability issue `missing_capability` when a provider exists but lacks the needed capability, and `new_capability_request` (with `requestedFunctionality`) to ask for one.

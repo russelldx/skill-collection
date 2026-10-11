@@ -3,20 +3,14 @@ name: firecrawl-scrape
 description: Extract clean markdown from known URLs, including JavaScript-rendered SPAs, when Firecrawl CLI extraction is selected. Supports single-page and concurrent URL scraping. Do not mandate Firecrawl for every URL or replace WebFetch and other suitable extraction tools solely because a user asks to read a webpage.
 allowed-tools:
   - Bash(firecrawl *)
-  - Bash(npx firecrawl *)
+  - Bash(npx firecrawl-cli *)
 ---
 
 # firecrawl scrape
 
-Scrape one or more URLs. Returns clean, LLM-optimized markdown. Multiple URLs are scraped concurrently.
+Read a URL for page content, or execute a selected provider tool for structured data. Discover tools with `search` and inspect their inputs with `list` before execution. Multiple URLs can be scraped concurrently.
 
-## When to use
-
-- Firecrawl is selected for extracting a specific URL's content
-- The page is static or JS-rendered (SPA)
-- Step 2 in the [Firecrawl CLI workflow](../firecrawl/SKILL.md#workflow): search → **scrape** → map → crawl → interact
-
-This is the CLI interface, not a mandate to replace WebFetch or install MCP. Firecrawl MCP is optional and uses its own schema. Follow the [security rules](../firecrawl/rules/security.md) before sending private URLs or data.
+For structured datasets, first check for a suitable workflow or data provider using the `firecrawl-search`. Read a known page directly; reuse a selected contract instead of repeating discovery.
 
 ## Quick start
 
@@ -30,8 +24,8 @@ firecrawl scrape "<url>" --only-main-content -o .firecrawl/page.md
 # Wait for JS to render, then scrape
 firecrawl scrape "<url>" --wait-for 3000 -o .firecrawl/page.md
 
-# Multiple URLs (separate files in .firecrawl/; use single-URL calls for -o or multiple formats)
-firecrawl scrape "https://example.com" "https://example.com/blog" "https://example.com/docs"
+# Multiple URLs (markdown only; each saved to .firecrawl/; -o is ignored)
+firecrawl scrape https://example.com https://example.com/blog https://example.com/docs
 
 # Get markdown and links together
 firecrawl scrape "<url>" --format markdown,links -o .firecrawl/page.json
@@ -40,55 +34,78 @@ firecrawl scrape "<url>" --format markdown,links -o .firecrawl/page.json
 firecrawl scrape "https://example.com/pricing" --query "What is the enterprise plan price?"
 ```
 
-## Options
+Run `firecrawl scrape --help` for the full option list.
 
-| Option                   | Description                                                      |
-| ------------------------ | ---------------------------------------------------------------- |
-| `-f, --format <formats>` | Output formats: markdown, html, rawHtml, links, screenshot, json |
-| `-Q, --query <prompt>`   | Ask a question about the page content; check current charges      |
-| `-H, --html`             | Output HTML (shortcut for `--format html`), not HTTP headers       |
-| `--only-main-content`    | Strip nav, footer, sidebar — main content only                   |
-| `--wait-for <ms>`        | Wait for JS rendering before scraping                            |
-| `--include-tags <tags>`  | Only include these HTML tags                                     |
-| `--exclude-tags <tags>`  | Exclude these HTML tags                                          |
-| `-o, --output <path>`    | Output file path                                                 |
+**Done when:** the page content or provider result has been checked for errors and inspected in bounded sections to answer the request. Preserve source links and disclose partial results.
 
-Confirm options with `firecrawl scrape --help`; fees and supported formats depend on the service and installed version, not this table.
+## Find tools, inspect inputs, and get help
 
-## Structured provider execution
-
-Use this path only after the [capability check](../firecrawl/SKILL.md#prerequisites) confirms provider support and [discovery](../firecrawl/SKILL.md#structured-provider-discovery) returns a suitable provider and capability. A known URL can still be scraped without provider discovery.
-
-For CLI versions supporting these forms, inspect the contract and then execute it:
+Use the CLI help to check supported options rather than guessing:
 
 ```bash
-firecrawl list "<provider-id>" "<capability-id>" --pretty
-firecrawl scrape "<provider-id>/<capability-id>" --options '<JSON matching the selected contract>' --json -o .firecrawl/provider-result.json
+firecrawl search --help
+firecrawl list --help
+firecrawl scrape --help
 ```
 
-Replace placeholders with returned identifiers and contract-valid inputs; do not infer them from a website name. Respect required fields and each `requiresOneOf` group. Read the declared response shape and `response.key` rather than assuming a `records` field. Provider pagination uses its own input/cursor mapping, not the catalogue's `next` value; preserve filters and stop at the declared end or user limit.
+Domain discovery with `--domain-tools` returns tool summaries by default. Add `--tool-detail full` for contracts upfront, or inspect one selected tool with `list` as shown below. Use `--tool-detail compact` for only provider, capability and description; inspect by those two IDs with `list`. Summary remains the default. Prefer full when several related contracts will be needed immediately.
 
-URL mode and provider mode are distinct. Check every provider item for errors, even when the outer response indicates success. Observe the [authorization and retry rules](../firecrawl/rules/security.md) before terms acceptance, side effects, or any retry. Do not copy CLI flags into an SDK or MCP request.
+For structured data, search for the task, inspect a matching tool's contract, then execute with the exact input fields it declares:
 
-## Completion and large results
+```bash
+# Web + domain matching + semantic tools
+firecrawl search '<user question>'
 
-Inspect the saved result before claiming completion: page content or structured records must answer the request, not just return a success flag. Disclose partial output and retain source links. Use JSON output when metadata or a structured envelope is needed, keeping stderr separate from JSON stdout.
+# Semantic tools only
+firecrawl search alexandria '<user question>'
 
-Read large output in bounded sections with local file tools. If display/context limits interrupt the response, execution may already have succeeded: keep returned request/scrape IDs and inspect saved or retained results using the selected interface's documented recovery mechanism. Do not resubmit solely because the client could not display the response.
+# Categories → providers → tools → contract
+firecrawl list
+firecrawl list <category-id> --category
+firecrawl list <provider-id>
+firecrawl list <provider-id> <capability-id> --pretty
 
-For PDF URLs, check whether the installed CLI offers a page-budget option such as `--max-pages` before using it. Limit pages within the user's budget when supported; if no suitable bound is available for an unknown-size document, ask before proceeding. A page cap is per PDF, not a total cost ceiling. Inspect parsed/total page counts and credits when returned; do not represent a partial parse as the whole document. Local-file upload authorization remains separate.
+# Execute a tool
+firecrawl scrape <provider-id>/<capability-id> --options '<JSON matching the selected contract>'
+```
+
+Normal search includes web results and tool matches; `search alexandria` searches tools only. `list <provider> <capability> --pretty` shows the selected contract; use `--json` for machine-readable output. To browse progressively, use `list`, then `list <category> --category`, then `list <provider>`. Search and list do not execute the selected provider tool. Read only the contracts needed for the task; use returned identifiers rather than guessing them.
+
+Read the expanded contract before building inputs or parsing results:
+
+- `required: true` requires that input; each `requiresOneOf` group requires at least one member, not all of them.
+- Selected-contract inspection already requests examples. Read the singular `example.request` and `example.response` when present; an empty request can be valid for tools with optional inputs.
+- `response.key` identifies the records field inside `data.alexandria[i].data`; an empty key means that data object itself. Do not assume every provider returns `records`.
+- Provider pagination differs from catalogue `next`: use the contract's continuation input and the returned page/cursor, preserve filters, and stop at its exhaustion signal. `paginated: true` alone does not specify that mapping.
+
+## Execution and large results
+
+URL scraping does not execute provider tools automatically. Use exact discovered input fields and resolve record IDs with lookup tools rather than inventing them. Check each `data.alexandria[]` result for errors, not just the outer success flag.
+
+If the client reports an output/context limit, the upstream request may have succeeded. Preserve the request or scrape ID and recover the retained result before repeating the provider call. For large datasets and PDFs, save output with `--json -o` when a local filesystem is available and inspect bounded sections with `jq` or other file tools. Keep stderr separate from JSON stdout; do not merge streams with `2>&1` when piping to a JSON parser. Where remote processing is preferable, use `firecrawl scrape firecrawl/bash` to select from a retained result. Read [large-result recovery](references/large-results.md) for IDs, command examples, expiry, and errors. This is explicit recovery, not automatic overflow detection.
+
+## PDFs and page budgets
+
+PDFs cost 1 credit per parsed page. Use `--max-pages` (an integer from 1 to 10000) to limit PDF parsing, especially for large or unknown documents:
+
+```bash
+firecrawl scrape "https://example.com/report.pdf" --max-pages 5 --json -o .firecrawl/report.json
+```
+
+The cap applies to each PDF, not the whole command or total credits. Extra formats and options can add charges. The CLI does not quote page counts or costs before execution. Use JSON output to inspect the returned `metadata.numPages` (parsed), `metadata.totalPages` (document total), and `metadata.creditsUsed` when present; a smaller parsed count means the result is partial.
 
 ## Tips
 
-- **Prefer plain scrape over `--query`.** Save content and inspect it locally when the whole page is needed. Use `--query` for a targeted answer only when its current extra charges fit the authorized budget.
-- **Try scrape before interact.** Scrape handles static pages and JS-rendered SPAs. Only escalate to `interact` when you need interaction (clicks, form fills, pagination).
-- Multiple-URL mode saves separate files under `.firecrawl/` and does not provide one `-o` destination. The upstream CLI's batch path selects markdown when available and otherwise can write the JSON response into a `.md` file; it is not a way to preserve all requested formats. Use one URL per invocation for explicit output paths or multiple formats, and bound concurrency.
+- **Prefer plain scrape over `--query`.** Scrape to a file, then use `grep`, `head`, or read the markdown directly — you can search and reason over the full content yourself. Use `--query` only when you want a single targeted answer without saving the page (costs 5 extra credits).
+- **Scrape handles static pages and JS-rendered SPAs.** Escalate to `interact` when the page needs interaction (clicks, form fills, pagination) or scrape misses content.
+- Multiple URLs are scraped concurrently — check `firecrawl --status` for your concurrency limit. This mode saves markdown only and ignores `-o`; other requested formats are dropped. If markdown wasn't requested, the whole JSON response is written into the `.md` file.
 - Single format outputs raw content. Multiple formats (e.g., `--format markdown,links`) output JSON.
 - Always quote URLs — shell interprets `?` and `&` as special characters.
 - Naming convention: `.firecrawl/{site}-{path}.md`
 
 ## See also
 
-- [Firecrawl CLI search](../firecrawl/SKILL.md#search) — find pages when you don't have a URL
+- `firecrawl-search` — find pages when you don't have a URL
 - [firecrawl-interact](../firecrawl-interact/SKILL.md) — when scrape can't get the content, use `interact` to click, fill forms, etc.
 - [firecrawl-download](../firecrawl-download/SKILL.md) — bulk download an entire site to local files
+- [firecrawl-build-scrape](https://github.com/firecrawl/skills/tree/main/skills/build/firecrawl-build-scrape) — building scrape into an app instead of running it here

@@ -7,8 +7,6 @@ description: Use when about to claim work is complete, fixed, or passing, before
 
 ## Overview
 
-Claiming work is complete without verification is dishonesty, not efficiency.
-
 **Core principle:** Evidence before claims, always.
 
 **Violating the letter of this rule is violating the spirit of this rule.**
@@ -105,14 +103,6 @@ Skip any step = lying, not verifying
 ❌ Trust agent report
 ```
 
-## Why This Matters
-
-Unverified completion claims:
-- Break the user's trust in the work
-- Ship undefined functions - would crash
-- Ship missing requirements - incomplete features
-- Waste time on false completion → redirect → rework
-
 ## When To Apply
 
 **ALWAYS before:**
@@ -128,11 +118,3 @@ Unverified completion claims:
 - Paraphrases and synonyms
 - Implications of success
 - ANY communication suggesting completion/correctness
-
-## The Bottom Line
-
-**No shortcuts for verification.**
-
-Run the command. Read the output. THEN claim the result.
-
-This is non-negotiable.

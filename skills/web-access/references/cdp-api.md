@@ -3,10 +3,9 @@
 ## 基础信息
 
 - 地址：`http://localhost:3456`
-- 启动：`node "${CLAUDE_SKILL_DIR}/scripts/cdp-proxy.mjs"`（需事先授权；变量未设置时使用 skill 实际绝对目录）
-- 启动后持续运行，可能被多个会话共享，不主动停止。
-- 必须停止或切换时，先核对监听端口、脚本绝对路径及 PID；经用户授权并确认不影响其他会话后仅停止该 PID，不按名称批量杀进程。只清理属于本任务的进程、会话与 tab；归属不明时交给用户处理。
-- 登录、上传和提交等状态改变须有明确授权；API 调用或浏览器的用户手势判定不代表用户同意。
+- 启动：`node ~/.claude/skills/web-access/scripts/cdp-proxy.mjs &`
+- 启动后持续运行，不建议主动停止（重启需 Chrome 重新授权）
+- 强制停止：`pkill -f cdp-proxy.mjs`
 
 ## API 端点
 
@@ -23,7 +22,7 @@ curl -s http://localhost:3456/targets
 ```
 
 ### POST /new
-创建新后台 tab，自动等待页面加载完成。**URL 通过 POST body 原样传入**，无需 URL-encode、不会因 query 中含 `&` 被切分。返回 `{ targetId }`。
+创建新后台 tab。Proxy 会先创建 `about:blank`、完成 CDP attach，再显式导航并等待目标 URL 的 DOM 至少进入 `interactive`，避免把新标签页初始的空白文档误判为目标页面。**URL 通过 POST body 原样传入**，无需 URL-encode、不会因 query 中含 `&` 被切分。返回 `{ targetId }`。
 ```bash
 curl -s -X POST --data-raw 'https://example.com' http://localhost:3456/new
 # 含 query 的目标 URL（如带 token 的小红书笔记）也直接原样传：
@@ -32,7 +31,7 @@ curl -s -X POST --data-raw 'https://www.xiaohongshu.com/explore/xxx?xsec_source=
 > v2.5.3 起改为 POST。旧的 `GET /new?url=...` 返回 400 + 迁移指引，详见 `migration-2.5.3.md`。
 
 ### GET /close?target=ID
-关闭指定 tab；只关闭本任务创建的 tab（`/targets` 中用户或其他会话已有的 tab 不要清理）。
+关闭指定 tab。
 ```bash
 curl -s "http://localhost:3456/close?target=TARGET_ID"
 ```
@@ -43,6 +42,8 @@ curl -s "http://localhost:3456/close?target=TARGET_ID"
 curl -s -X POST --data-raw 'https://example.com' "http://localhost:3456/navigate?target=ID"
 ```
 > v2.5.3 起改为 POST。旧的 `GET /navigate?target=...&url=...` 返回 400 + 迁移指引，详见 `migration-2.5.3.md`。
+
+> `/new` 和 `/navigate` 的等待是浏览器文档层的基础保证，不是业务内容完成保证。验证页、登录跳转、SPA 异步渲染等仍可能继续变化；调用后必须按主 Skill 的“页面就绪与完成判断”检查目标内容，不能只看 `readyState`。
 
 ### GET /back?target=ID
 后退一页。
@@ -69,7 +70,7 @@ curl -s -X POST "http://localhost:3456/click?target=ID" -d 'button.submit'
 ```
 
 ### POST /clickAt?target=ID
-CDP 浏览器级鼠标点击（`Input.dispatchMouseEvent`），POST body 为 CSS 选择器。先获取元素坐标，再模拟鼠标按下/释放。可满足某些浏览器功能的用户手势要求并触发文件对话框，但这不代表用户授权，也不保证避开自动化检测或账号限制。
+CDP 浏览器级真实鼠标点击（`Input.dispatchMouseEvent`），POST body 为 CSS 选择器。先获取元素坐标，再模拟鼠标按下/释放。算真实用户手势，能触发文件对话框、绕过部分反自动化检测。
 ```bash
 curl -s -X POST "http://localhost:3456/clickAt?target=ID" -d 'button.upload'
 ```
@@ -107,5 +108,5 @@ curl -s "http://localhost:3456/screenshot?target=ID&file=/tmp/shot.png"
 |------|------|------|
 | `Chrome 未开启远程调试端口` | Chrome 未开启远程调试 | 提示用户打开 `chrome://inspect/#remote-debugging` 并勾选 Allow |
 | `attach 失败` | targetId 无效或 tab 已关闭 | 用 `/targets` 获取最新列表 |
-| `CDP 命令超时` | 页面长时间未响应，或经 `/eval`、`/click`、`/clickAt` 等触发的动作可能已执行但未返回结果 | 先读取该 tab 的实际状态（`/info`、页面/DOM 结果）确认动作是否已生效；只有确认未执行或动作幂等时才重试，可能已产生副作用的操作不要直接重放，无法确认时如实报告不确定性 |
-| `端口已被占用` | 另一个 proxy 已在运行（未必属于本任务） | 先核对监听端口、脚本绝对路径与进程归属：确认是本 skill 的 Proxy 且经用户授权后才复用；无法确认归属时不要向该端口发送带会话/私密数据的请求，交由用户处理 |
+| `CDP 命令超时` | 页面长时间未响应 | 重试或检查 tab 状态 |
+| `端口已被占用` | 另一个 proxy 已在运行 | 已有实例可直接复用 |

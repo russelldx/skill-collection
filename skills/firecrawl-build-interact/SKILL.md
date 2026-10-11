@@ -4,7 +4,7 @@ description: Integrate Firecrawl `/interact` into product code for dynamic pages
 license: ISC
 metadata:
   author: firecrawl
-  version: "0.1.0"
+  version: 0.1.0
   homepage: https://www.firecrawl.dev
   source: https://github.com/firecrawl/skills
 inputs:
@@ -47,7 +47,7 @@ Use this when `/scrape` is not enough because the feature needs to act on the pa
 
 ## Escalation Rules
 
-- If the page can be read directly, use `firecrawl-build-scrape` instead (not part of this collection).
+- If the page can be read directly, stay on `firecrawl-build-scrape`.
 
 ## Docs (Source of Truth)
 
@@ -62,4 +62,6 @@ Read the source-of-truth page for your project language before writing integrati
 
 ## See Also
 
-- `firecrawl-build`, `firecrawl-build-scrape`, `firecrawl-build-search` — not part of this collection
+- `firecrawl-build`
+- `firecrawl-build-scrape`
+- `firecrawl-build-search`

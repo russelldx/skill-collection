@@ -4,7 +4,7 @@ description: Get Firecrawl credentials and SDK setup into a project. Use when an
 license: ISC
 metadata:
   author: firecrawl
-  version: "0.1.0"
+  version: 0.1.0
   homepage: https://www.firecrawl.dev
   source: https://github.com/firecrawl/skills
 inputs:
@@ -24,11 +24,18 @@ references:
 
 Use this skill for the application-integration path from Firecrawl's onboarding flow.
 
-## Setup boundary
+## Install
 
-Inspect the project's existing SDK and credential setup first. Reuse what is available; app integration does not require installing CLI skills or MCP. Install a project SDK only within the authorized dependency scope. Do not automatically run all-in-one initialization, global installs/updates, browser login, or account creation.
+If you haven't installed yet, one command sets up both the CLI tools
+(for live web work) and the build skills (for app integration):
 
-Before starting an account auth flow, get explicit authorization and let the human complete sign-in/consent. Before saving credentials, confirm the project/environment and secret destination; do not print keys or place them in source control. A live smoke test, private-file upload, or form submission needs authorization covering that action and data.
+```bash
+npx -y firecrawl-cli@latest init --all --browser
+```
+
+This installs the Firecrawl CLI, the CLI skills, and these build skills
+together. It also opens browser auth so the human can sign in or create
+an account. No separate `npx skills add` step is needed.
 
 ## Use This When
 
@@ -38,6 +45,15 @@ Before starting an account auth flow, get explicit authorization and let the hum
 - you need to choose the first SDK or REST path
 
 If the human still needs to sign up, sign in, or authorize access in the browser, use the auth flow reference in this skill.
+
+If the project already uses [Stripe Projects](https://docs.firecrawl.dev/integrations/stripe-projects) (a `.projects/` directory, or `stripe projects status` succeeds), the key can come from there instead of the browser flow:
+
+```bash
+stripe projects add firecrawl/api --name firecrawl
+stripe projects env --pull
+```
+
+`--name firecrawl` is what puts the key in `FIRECRAWL_API_KEY`; without it the CLI writes `FIRECRAWL_API_API_KEY`, which the SDKs do not read. Ignore the `FIRECRAWL_API_BASE_URL` the CLI also writes: the SDKs read `FIRECRAWL_API_URL`, and only for self-hosted deployments, so leave it unset for a hosted account. Paid plans are the human's call, since `stripe projects upgrade firecrawl` charges their card. The docs page carries the catalog and troubleshooting.
 
 ## Quick Start
 
@@ -63,22 +79,13 @@ Then decide which integration path applies:
 | Task | Reference |
 |---|---|
 | **Run the browser auth flow and save `FIRECRAWL_API_KEY`** | [references/auth-flow.md](references/auth-flow.md) |
+| **Provision the key through Stripe Projects** | [docs.firecrawl.dev/integrations/stripe-projects](https://docs.firecrawl.dev/integrations/stripe-projects) |
 | **Install the right SDK** | [references/sdk-installation.md](references/sdk-installation.md) |
 | **Put credentials into `.env` or project config** | [references/project-setup.md](references/project-setup.md) |
-| **Choose the right endpoint after setup** | [Endpoint selection](#endpoint-selection) |
-| **Need live web tooling during this task** | [Firecrawl CLI](../firecrawl/SKILL.md), if installed and authorized |
-| **Start implementation from a known URL** | `/scrape` in the [official language docs](#docs-source-of-truth) |
-| **Start implementation from a query** | `/search` in the [official language docs](#docs-source-of-truth) |
-
-## Endpoint selection
-
-- A query without a URL: `/search` to discover sources.
-- A known page: `/scrape` to extract its content directly; provider discovery is not required for ordinary page reading.
-- Structured records across multiple entities: when the installed SDK/API supports provider discovery, inspect a matching contract before implementing execution. Follow its required inputs, result field, and pagination; do not assume a generic `records` response. If unsupported or no suitable provider exists, choose the existing page or agent workflow that fits the authorized task.
-- Find URLs within one site: `/map`; bulk content from a scoped section: `/crawl`.
-- Clicks or pagination after extraction: `/interact`; use [firecrawl-build-interact](../firecrawl-build-interact/SKILL.md) for product action boundaries.
-
-Use the official language documentation below for SDK method names, request schemas, and responses. CLI flags and optional MCP tool parameters are different interfaces, not SDK signatures. Verify provider support in the project's installed SDK before writing code; a newer CLI example is not a reason to upgrade it silently. The bundled CLI [search](../firecrawl/SKILL.md#search) and [scrape](../firecrawl-scrape/SKILL.md) guides are usable for one-off web work, not substitute SDK references.
+| **Choose the right endpoint after setup** | `firecrawl-build` |
+| **Need live web tooling during this task** | The CLI skills are already installed from the same command |
+| **Start implementation from a known URL** | `firecrawl-build-scrape` |
+| **Start implementation from a query** | `firecrawl-build-search` |
 
 ## Docs (Source of Truth)
 
@@ -100,6 +107,6 @@ Once the key is present:
 3. pick the narrowest endpoint that matches that behavior
 4. read the source-of-truth page for the project language before writing code
 5. add the SDK or REST call in code
-6. run a small in-scope live smoke test only if authorized; otherwise report that live access is unverified
-7. use the [official language docs](#docs-source-of-truth) and [build-interact](../firecrawl-build-interact/SKILL.md) when applicable
-8. for one-off web work, use the existing [Firecrawl CLI guide](../firecrawl/SKILL.md) if the CLI is available; do not auto-install tools
+6. run a smoke test that proves one real Firecrawl request succeeds
+7. use the endpoint-specific skills in this repo for implementation guidance
+8. if you also need live web tooling during the current task, the CLI skills are already installed — use `firecrawl/cli`

@@ -42,7 +42,7 @@ if (typeof globalThis.WebSocket !== 'undefined') {
     WS = (await import('ws')).default;
   } catch {
     console.error('[CDP Proxy] 错误：Node.js 版本 < 22 且未安装 ws 模块');
-    console.error('  请使用已安装的 Node.js 22+；若需安装或升级，先取得用户授权，不自动安装全局依赖。');
+    console.error('  解决方案：升级到 Node.js 22+ 或执行 npm install -g ws');
     process.exit(1);
   }
 }
@@ -61,7 +61,7 @@ async function discoverChromePort() {
     if (pinnedBrowserId && pinnedBrowserId !== result.browser.id) {
       throw new Error(
         `本次连接的浏览器已经是 ${pinnedBrowserId}，不会自动切到 ${result.browser.id}。` +
-        `若要切换，请先核对本进程 PID ${process.pid}、脚本路径及共享会话；仅在用户授权且确认不影响其他会话后停止该 PID。勿按进程名批量终止。`
+        `如果想换成 ${result.browser.id}，请先在终端运行 pkill -f cdp-proxy.mjs 重置。`
       );
     }
     pinnedBrowserId = result.browser.id;
@@ -76,21 +76,18 @@ async function discoverChromePort() {
     const src = result.source === 'override' ? '本次指定' : '默认偏好';
     throw new Error(
       `${src}的浏览器是 "${expected}"，但没连上。Agent 处理顺序：` +
-      `(1) 先确认用户已授权启动 ${expected}；获准后按平台打开并重试；` +
-      `(2) 若仍失败，可能是远程调试未启用或 profile 不同；请用户检查 ${expected}://inspect/#remote-debugging，不擅自修改浏览器配置。`
+      `(1) 先用系统命令打开 ${expected}（按平台选择，如 macOS 的 open -a），稍等后重试请求；` +
+      `(2) 若仍失败，说明远程调试开关没启用 —— 告知用户在地址栏访问 ${expected}://inspect/#remote-debugging 勾选 "Allow remote debugging for this browser instance"。`
     );
   }
   // 已 pin 过浏览器（如首次连上 edge 后 edge 退出）：拒绝任何 fallback
   if (pinnedBrowserId) {
     throw new Error(
       `本次连接的浏览器是 ${pinnedBrowserId}，但现在没连上。Agent 处理顺序：` +
-      `(1) 先确认用户已授权启动 ${pinnedBrowserId}；获准后按平台打开并重试；` +
-      `(2) 若仍失败，请用户检查 ${pinnedBrowserId}://inspect/#remote-debugging，不擅自修改浏览器配置。` +
-      `若要切换，请先核对本进程 PID ${process.pid}、脚本路径及共享会话；仅在用户授权且确认不影响其他会话后停止该 PID。勿按进程名批量终止。`
+      `(1) 先用系统命令打开 ${pinnedBrowserId}（按平台选择），稍等后重试请求；` +
+      `(2) 若仍失败，告知用户在地址栏访问 ${pinnedBrowserId}://inspect/#remote-debugging 重新勾选允许。` +
+      `若想换成其他浏览器，请先在终端运行 pkill -f cdp-proxy.mjs 重置。`
     );
-  }
-  if (result.kind === 'ambiguous') {
-    throw new Error('请先选择浏览器；可用 --browser 指定本次连接，不自动保存偏好。');
   }
   // 仅在「从未成功连接 + 无偏好/override」时允许固定端口兜底（手动 --remote-debugging-port 启动场景）
   const fallbackPort = await findFallbackPort();
@@ -279,7 +276,11 @@ async function closeAllManagedTabs() {
 }
 
 // --- 等待页面加载 ---
-async function waitForLoad(sessionId, timeoutMs = 15000) {
+async function waitForLoad(
+  sessionId,
+  timeoutMs = 15000,
+  { requireNonBlank = false, acceptInteractive = false } = {},
+) {
   // 启用 Page 域
   await sendCDP('Page.enable', {}, sessionId);
 
@@ -297,10 +298,13 @@ async function waitForLoad(sessionId, timeoutMs = 15000) {
     const checkInterval = setInterval(async () => {
       try {
         const resp = await sendCDP('Runtime.evaluate', {
-          expression: 'document.readyState',
+          expression: 'JSON.stringify({ ready: document.readyState, url: location.href })',
           returnByValue: true,
         }, sessionId);
-        if (resp.result?.result?.value === 'complete') {
+        const value = resp.result?.result?.value;
+        const state = typeof value === 'string' ? JSON.parse(value) : null;
+        const ready = state?.ready === 'complete' || (acceptInteractive && state?.ready === 'interactive');
+        if (ready && (!requireNonBlank || state.url !== 'about:blank')) {
           done('complete');
         }
       } catch { /* 忽略 */ }
@@ -361,7 +365,9 @@ const server = http.createServer(async (req, res) => {
       }
       const body = (await readBody(req)).trim();
       const targetUrl = body || 'about:blank';
-      const resp = await sendCDP('Target.createTarget', { url: targetUrl, background: true });
+      // 先创建空白页并完成 attach，再显式导航。Target.createTarget({ url }) 会先暴露
+      // readyState=complete 的 about:blank，导致慢页面在真正开始加载前被误判为完成。
+      const resp = await sendCDP('Target.createTarget', { url: 'about:blank', background: true });
       const targetId = resp.result.targetId;
       managedTabs.set(targetId, { lastAccessed: Date.now() });
 
@@ -369,7 +375,8 @@ const server = http.createServer(async (req, res) => {
       if (targetUrl !== 'about:blank') {
         try {
           const sid = await ensureSession(targetId);
-          await waitForLoad(sid);
+          await sendCDP('Page.navigate', { url: targetUrl }, sid);
+          await waitForLoad(sid, 15000, { requireNonBlank: true, acceptInteractive: true });
         } catch { /* 非致命，继续 */ }
       }
 

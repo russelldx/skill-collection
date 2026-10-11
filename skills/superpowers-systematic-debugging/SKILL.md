@@ -7,11 +7,9 @@ description: Use when encountering any bug, test failure, or unexpected behavior
 
 ## Overview
 
-Random fixes waste time and create new bugs. Quick patches mask underlying issues.
-
 **Core principle:** ALWAYS find root cause before attempting fixes. Symptom fixes are failure.
 
-Use this discipline within the authorized task scope. System/developer instructions, host permissions, stop requests, and agreed budgets take precedence. Evidence gathering does not authorize secret disclosure, production instrumentation, destructive bisection, or unrelated refactors.
+**Violating the letter of this process is violating the spirit of debugging.**
 
 ## The Iron Law
 
@@ -57,14 +55,11 @@ You MUST complete each phase before proceeding to the next.
    - Read stack traces completely
    - Note line numbers, file paths, error codes
 
-2. **Build a Tight Red Reproduction Command**
-   - Name one command and actually run it before theorizing about fixes; capture the invocation, exit status, and output showing the user's exact symptom (not merely a crash nearby).
-   - Prefer a failing test at a real seam, then an HTTP/CLI fixture, headless browser assertion, captured-trace replay, minimal harness, bounded property/fuzz run, bisection harness, or differential old/new comparison. Use only permitted tools and environments.
-   - If human interaction is unavoidable, consult `references/diagnosing-bugs/scripts/hitl-loop.template.sh`; it is a template, not an automatically started loop.
-   - Minimize inputs/callers/config one at a time while preserving the red signal. Pin time, random seed, fixtures, and network where possible. For flaky bugs report observed failure rate, trial count, and a bounded repetition budget rather than asserting determinism.
-   - If no faithful repro is possible, report attempts and request the missing access/artifact. Stop before speculative edits; do not escalate permissions, instrument production, or run unbounded stress tests.
-
-   **Performance branch:** before changing code, record the metric, units, dataset, environment, warm-up, repetitions, baseline distribution (e.g. median/p95 latency, memory, throughput), and the acceptance threshold. Use a timing harness/profiler/query plan, then bounded bisection or one-variable comparisons. Re-measure with the same setup after the fix; logs alone are not performance evidence.
+2. **Reproduce Consistently**
+   - Can you trigger it reliably?
+   - What are the exact steps?
+   - Does it happen every time?
+   - If not reproducible → gather more data, don't guess
 
 3. **Check Recent Changes**
    - What changed that could cause this?
@@ -91,19 +86,13 @@ You MUST complete each phase before proceeding to the next.
 
    **Example (multi-layer system):**
    ```bash
-   # Layer 1: Workflow (presence only; never print secret values)
-   if [ -n "${IDENTITY:-}" ]; then
-     printf 'IDENTITY is set in workflow\n'
-   else
-     printf 'IDENTITY is unset in workflow\n'
-   fi
+   # Layer 1: Workflow
+   echo "=== Secrets available in workflow: ==="
+   echo "IDENTITY: $([ -n "${IDENTITY:-}" ] && echo SET || echo UNSET)"
 
-   # Layer 2: Build script (presence only; never print secret values)
-   if [ -n "${IDENTITY:-}" ]; then
-     printf 'IDENTITY is set\n'
-   else
-     printf 'IDENTITY is unset\n'
-   fi
+   # Layer 2: Build script
+   echo "=== Env vars in build script: ==="
+   printenv IDENTITY >/dev/null 2>&1 && echo "IDENTITY in environment" || echo "IDENTITY not in environment"
 
    # Layer 3: Signing script
    echo "=== Keychain state: ==="
@@ -155,10 +144,10 @@ You MUST complete each phase before proceeding to the next.
 
 **Scientific method:**
 
-1. **Rank Falsifiable Hypotheses**
-   - For hard bugs, write 3–5 ranked hypotheses before testing, each with evidence and a prediction: "If X causes this, changing Y will remove/worsen the symptom." Do not pad an already proven simple cause with invented alternatives.
-   - Share the ranking as a progress checkpoint, not a new approval gate for already authorized tests. Re-rank as evidence arrives.
-   - Test one hypothesis at a time. Map each probe to its prediction; prefer debugger inspection or targeted boundary logs, not logging everything. Tag temporary logs with a unique prefix for cleanup.
+1. **Form Single Hypothesis**
+   - State clearly: "I think X is the root cause because Y"
+   - Write it down
+   - Be specific, not vague
 
 2. **Test Minimally**
    - Make the SMALLEST possible change to test hypothesis
@@ -180,10 +169,12 @@ You MUST complete each phase before proceeding to the next.
 
 **Fix the root cause, not the symptom:**
 
-1. **Create a Regression Test at the Correct Seam**
-   - Turn the minimal repro into a failing test before the fix, exercising the real call pattern (including multiple callers or integration boundaries where relevant).
-   - A shallow mock-only test that cannot reproduce the original failure is not a valid seam. If no suitable seam exists, state that finding and retain the one-off red repro; propose architectural follow-up separately, without expanding the fix.
-   - Use the `superpowers:test-driven-development` skill when available for proper failing tests. Never claim a regression is locked down when only a surrogate was tested.
+1. **Create Failing Test Case**
+   - Simplest possible reproduction
+   - Automated test if possible
+   - One-off test script if no framework
+   - MUST have before fixing
+   - Use the `superpowers:test-driven-development` skill for writing proper failing tests
 
 2. **Implement Single Fix**
    - Address the root cause identified
@@ -191,11 +182,11 @@ You MUST complete each phase before proceeding to the next.
    - No "while I'm here" improvements
    - No bundled refactoring
 
-3. **Verify Fix and Clean Up**
-   - Re-run the regression test and the original, un-minimized reproduction command; report both results.
-   - Check related tests; for performance rerun the same metric harness against the baseline and threshold.
-   - Remove only your tagged temporary instrumentation/fixtures, preserving user artifacts. State the confirmed cause and any missing test seam in the handoff, not an automatic commit or PR.
-   - Consult [diagnosis-loop techniques](references/diagnosing-bugs/REFERENCE.md) for additional repro/seam methods; this bundled reference is not a separate skill.
+3. **Verify Fix**
+   - Test passes now?
+   - No other tests broken?
+   - Issue actually resolved?
+   - Use the `superpowers:verification-before-completion` skill before claiming success
 
 4. **If Fix Doesn't Work**
    - STOP
@@ -245,7 +236,7 @@ If you catch yourself thinking:
 - "Is that not happening?" - You assumed without verifying
 - "Will it show us...?" - You should have added evidence gathering
 - "Stop guessing" - You're proposing fixes without understanding
-- "Ultrathink this" - Question fundamentals, not just symptoms
+- "Ultra-think this" - Question fundamentals, not just symptoms
 - "We're stuck?" (frustrated) - Your approach isn't working
 
 **When you see these:** STOP. Return to Phase 1.
@@ -290,15 +281,3 @@ These techniques are part of systematic debugging and available in this director
 - **`root-cause-tracing.md`** - Trace bugs backward through call stack to find original trigger
 - **`defense-in-depth.md`** - Add validation at multiple layers after finding root cause
 - **`condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
-
-**Related skills:**
-- **superpowers:test-driven-development** - For creating failing test case (Phase 4, Step 1)
-- **superpowers:verification-before-completion** - Verify fix worked before claiming success
-
-## Real-World Impact
-
-From debugging sessions:
-- Systematic approach: 15-30 minutes to fix
-- Random fixes approach: 2-3 hours of thrashing
-- First-time fix rate: 95% vs 40%
-- New bugs introduced: Near zero vs common
