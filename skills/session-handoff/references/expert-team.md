@@ -77,6 +77,8 @@
 
 ### 载入顺序（isolation: on，替代上文默认顺序）
 
+- **未声明角色闸门（先于下面两条）**：未声明角色的会话只读到 TEAM.md「隔离模式」块为止；isolation: on 且角色未明 → 先用 AskUserQuestion 问清角色，不得载入 `main/` 或任何 `roles/`——**默认按主角色处理 = 破坏隔离**（主角色持全量上下文与 TEAM.md/BRIEF.md 写权，恰是隔离要防的）
+- 通用流程第 0 步（读 STATE.json + §0 滚动摘要）在 isolation: on 时同受此闸门约束：角色未明不读 `main/STATE.json` 与 `main/handoff.md`；声明为隔离角色后，第 0 步以该角色 `BRIEF.md` 替代
 - 主角色：AGENTS.md → TEAM.md → `main/handoff.md`（+STATE.json）→ 各 `roles/*/QUESTIONS.md` 未答条目 → 相关 OUTBOX.md
 - 隔离角色：AGENTS.md → `roles/<self>/BRIEF.md` → TEAM.md **仅自己的任务行**（认领/回写状态）→ `roles/<self>/QUESTIONS.md`（查主角色答复）
 - 隔离角色**禁止 Read** `main/`、其他 `roles/`、主交接文档——目录隔离是结构保证，此条是纪律兜底
