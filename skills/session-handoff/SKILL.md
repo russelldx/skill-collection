@@ -11,7 +11,7 @@ description: 会话交接/对接文档范式（通用，不限编程）。任何
 
 | 场景 | Read |
 |---|---|
-| 专家团 / 多会话协作 | `references/expert-team.md` |
+| 专家团 / 多会话协作 / 角色隔离（isolation 开关，防开发叙述污染测试评审角色） | `references/expert-team.md` |
 | 新建交接文档，或活跃区 > 20 KB 需归档 | `references/archiving.md` |
 | 任务是编程 / 开发 | `references/programming-plugin.md` |
 | 机器要读当前态 / 活跃区超阈要折叠 / 跨会话找回旧结论 | `references/state-schema.md`（STATE.json 读模型 + §0 分层折叠 + 本地 BM25 检索） |
@@ -64,7 +64,9 @@ description: 会话交接/对接文档范式（通用，不限编程）。任何
 ## 模板与参考
 
 - `assets/handoff-template.md` — 交接文档模板（新建时复制）
-- `assets/expert-team-template.md` — 专家团 TEAM.md 模板
+- `assets/expert-team-template.md` — 专家团 TEAM.md 模板（含隔离模式开关块）
+- `assets/brief-template.md` — 隔离模式 BRIEF.md 模板（主角色注入隔离角色的唯一输入，claim-free）
+- `assets/outbox-template.md` — 隔离模式 OUTBOX.md / QUESTIONS.md 模板（角色 append-only 产出 + 阻塞式提问窄通道）
 - `assets/code-standard-template.md` — 代码规范章节模板（仅编程）
 - `references/` — 场景细则（见上方索引）
 - `scripts/handoff.py` — 零依赖纯标准库工具：`init`（脚手架 §0+STATE.json+archive/.backup）、`validate`（STATE.json schema/新鲜度/一致性）、`index`（重建 INDEX.md 检索索引 + 顶部「⚠ 待折叠」清单）、`search "<关键词>"`（离线 BM25 跨活跃区+archive 定位）、`status [<root>]`（遍历 root 下所有 STATE.json 出跨会话当前态大表，`--status`/`--stale-days` 过滤、`--format json` 供机器消费）、`install-hooks`（把 `hooks/*.sh` 部署到 `~/.qoder/hooks`：内容一致跳过、有变动先备份旧版到 `.backup/` 再写 + sha256 校验）。详见 `references/state-schema.md`

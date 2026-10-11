@@ -82,6 +82,7 @@ handoff.py install-hooks [--source DIR --target DIR]    # 把 skill hooks/*.sh �
 
 - `SKILL.md` 流程已加入：会话开始读 `§0 + STATE.json`；会话结束"追加小节 →（可选）折叠 → 刷新 STATE → 重建 INDEX"。
 - `archiving.md` 的"整节移到 archive"是本文件 Tier 1→3 的具体化，二者一致。
+- 专家团隔离模式（`expert-team.md` isolation: on）：STATE.json 随主交接文档移入 `.handoff/main/`，仍是全局唯一读模型，仅主角色维护；隔离角色不读不写 STATE.json，其进度由主角色从 OUTBOX.md 汇总进 `nextActions`/`openBlockers`；`fileOwnership` 把 `roles/<role>/work/` 映射到对应角色。`handoff.py validate` 照常校验 `main/STATE.json`，`status` 递归扫描能发现 main/ 下的读模型。
 - hook `handoff-stop-check.sh` 的 20 KB 检测不变（仍兜底防膨胀），但 ②/③ 现在会解析出 `handoff.py` 的绝对路径，指示先读 `INDEX.md` 顶部"⚠ 待折叠"清单挑候选节，并**逐目录打印可直接复制的 `index / validate / search / status` 命令**——把 hook 的"该瘦身了"直接接到工具动作上，不再停在口号式提示。
 - hook 源改放在 skill 的 `hooks/` 目录（`handoff-stamp.sh` + `handoff-stop-check.sh` + `README.md`），是**唯一该编辑的那份**；`~/.qoder/hooks/` 只是运行时副本，靠 `install-hooks` 部署（内容一致跳过、有变动先备份再写并 sha256 复核）。skill 以 `.qoder/skills/session-handoff/` 为唯一权威副本（QoderWork 时代的 `.qoderwork` 双副本已于 2026-09-15 随迁移删除）。
 - Windows 体质坑（`\r\n` 虚增字节、控制台 GBK 乱码、`grep -c` 非计数）见 `archiving.md`，脚本已强制 `encoding=utf-8, newline=''`。

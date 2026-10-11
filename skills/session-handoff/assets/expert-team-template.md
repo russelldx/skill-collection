@@ -13,6 +13,14 @@
 | 例（编程）：backend-expert | 后端接口/导入导出 | |
 | 例（非编程）：解题/调研/写作/审校专家 | 按任务领域定；无现成 agent 时用 agent-creator 创建 | |
 
+## 隔离模式
+
+> 协议见 skill `references/expert-team.md`「隔离模式」；开关变更与目录迁移由主角色在获用户确认后执行并留痕。
+
+- isolation: off（on 时：主角色独写本文件与各 BRIEF.md；隔离角色禁读 `main/` 与其他 `roles/`）
+- main-role:（isolation: on 时必填；持有 `.handoff/main/` 完整上下文，唯一信息路由器）
+- isolated-roles:（逗号分隔；各占 `.handoff/roles/<role>/`，读 BRIEF.md，写 OUTBOX.md / QUESTIONS.md / work/）
+
 ## 任务板
 
 | # | 任务 | 负责角色 | 文件域（禁止越界） | 依赖 | 状态 | 验证证据 |
@@ -31,6 +39,7 @@
 
 - 集成模式：A（串行，纯文件）/ B（并行，角色分支 `team/<角色>-<任务号>`）——见 skill `references/expert-team.md`「git 集成」；**模式 B 仅限 git 管理的项目**，非 git 任务一律用模式 A
 - 模式 B 时：角色分支可自由提交（前缀 `[角色]`），合入主分支/推送需用户授权，合并由评审角色执行且合并前跑验证
+- isolation: on 时：隔离角色任务的文件域指向 `roles/<role>/work/` 或项目内明确路径；TEAM.md/BRIEF.md 仅主角色可改（含模式 B 分支）
 - 公共文件（AGENTS.md、交接文档、TEAM.md）的修改权归属：
 
 ## 遗留/待办
