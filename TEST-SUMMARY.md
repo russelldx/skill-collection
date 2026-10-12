@@ -39,7 +39,6 @@ PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -p 'test_reposito
 PYTHONUTF8=1 python -B -m unittest discover -s tests -p 'test_skill_sync.py' -v
 PYTHONUTF8=1 python -B -m unittest discover -s tests -p 'test_mcp_smoke.py' -v
 node --test skills/web-access/scripts/audit-safety.test.mjs
-PYTHONUTF8=1 python -B skills/anthropic-xlsx/scripts/test_recalc.py
 PYTHONUTF8=1 python -B skills/course-assignment/scripts/test_verify_media.py
 PYTHONUTF8=1 python -B skills/course-assignment/scripts/test_gen_docx.py
 PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
@@ -51,12 +50,13 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出的哈希与方向绑定、`core.autocrlf` 检出字节的容忍；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行 |
 | MCP smoke 检查器 | 25 项通过 | 注入内存流与假会话：初始化、分页、超时、清理、isError、结构校验、启动器拒绝、证据标签；不外连 |
 | web-access 浏览器安全 | 12 项通过 | 注入假发现结果：严格选择、身份未确认拒绝复用、启动后身份复核、禁止备用探测、Proxy 复用与授权诊断；不启动浏览器或监听端口 |
-| LibreOffice 重算 | 8 项通过 | 模拟外部进程，验证临时 profile、完成标记、失败/超时清理和 Windows 拒绝执行；**未真实重算** |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
 | 课程 DOCX 生成 | 3 项通过，无跳过 | 缺依赖预检查，以及使用现有 docx 包真实生成包含表格和图片的 DOCX，再校验媒体 |
 | POI 删列停用 | 4 项通过 | 真实编译运行拒绝入口，确认输入/输出不变；其他命令只验证参数转发，不代表 POI 工作簿功能已验收 |
 
 测试在临时目录中生成样本并清理，不使用真实用户文件。运行前需要现有 Python/openpyxl、Node.js、Java 和 Bash；DOCX 生成测试在缺少现有 docx 包时会明确跳过，不能把跳过记作通过。
+
+上游重构后已删除的回归与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目：`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误（测试用 `patch.object(recalc.signal, ...)` 注入的信号处理已不存在），因此连同其命令行一起撤下；`recalc.py` 本身仍在，重算路线改由"真实环境中仍需验证"一节承担，**不再有 mock 层覆盖**。同时删除 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`（能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令）、以及 `anthropic-pptx/editing.md`、`pptxgenjs.md`（内容合并进精简后的 `SKILL.md`，且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`）。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再折回 `SKILL.md`，不靠保留过期副本。
 
 此前会话曾发现：提交 `d6ed444` 的树因错误的同步 hook 用旧版本覆盖，未包含审计修复。其暂存对象（64 个 Git blob）仍存在于本地对象库；本轮已保存恢复前快照，并精确恢复 7 个安全相关脚本（重算、POI 拒绝入口、浏览器、DOCX 生成），上述测试即这些恢复的回归规格。其余参考文档候选的合入仍待逐项复核，未恢复不等于已丢失。
 
@@ -96,7 +96,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 路线 | 必须另行验证的内容 |
 |------|------------------|
 | 文档生成 | 本机依赖、实际文件打开、渲染质量、公式结果、格式和数据验证保留 |
-| LibreOffice 重算 | 外部程序可用、临时 profile 隔离，以及重算输出的实际正确性；当前 Windows 明确拒绝，本机无 soffice |
+| LibreOffice 重算 | 外部程序可用、临时 profile 隔离，以及重算输出的实际正确性；当前 Windows 明确拒绝，本机无 soffice；针对重构后 `recalc.py` 的 mock 回归已撤下，此路线当前无任何自动化覆盖 |
 | POI 删列 | 暂停；拒绝入口已验证，但工作簿保真能力不重新启用 |
 | Chrome DevTools / web-access | 调试授权、浏览器/profile 归属、真实页面读取与交互；本轮只验证了注入式安全边界 |
 | Firecrawl | MCP 认证修复后的 search/scrape/interact 各自功能与计费能力 |
