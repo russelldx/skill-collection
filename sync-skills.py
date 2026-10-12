@@ -27,9 +27,7 @@ import uuid
 MISSING = "missing"
 EXCLUDED_SKILLS = {"daibi", "tuomin", "diagnosing-bugs", "claude-mem-learn-codebase",
                    "pua-mama", "pua-yes", "pua-pua", "pua-pua-loop",
-                   "superpowers-using-superpowers", "superpowers-finishing-a-development-branch",
-                   # Repository-maintenance playbook; never mirrored to or from an installed root.
-                   "skill-update"}
+                   "superpowers-using-superpowers", "superpowers-finishing-a-development-branch"}
 EXCLUDED_PARTS = {"hooks", "cache", "caches", "__pycache__", "node_modules", "venv",
                   "dist", "build", "target", "_meta.json", "metadata.json", "package-lock.json",
                   "yarn.lock", "pnpm-lock.yaml", "uv.lock", "skill-lock.json", "skills-lock.json"}
@@ -539,7 +537,7 @@ def materialize_index(repo, root):
     return entries
 
 
-def hook(engine, expected_active=56):
+def hook(engine, expected_active=55):
     try:
         for row in engine.check():
             if row["status"] not in {"equal", "equal-unbound"}:

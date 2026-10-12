@@ -22,3 +22,6 @@ __pycache__/
 *.iml
 *.sublime-project
 *.sublime-workspace
+
+# 本地 skill 管理流程，不入库、不发布 GitHub（仅存在于 ~/.qoder/skills）
+skills/skill-update/

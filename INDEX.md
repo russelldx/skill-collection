@@ -1,6 +1,6 @@
 # Skill 索引
 
-仅下列 **56 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
+仅下列 **55 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
 
 ## 文档与课程（7 个）
 
@@ -98,12 +98,6 @@ Firecrawl 共 10 个独立入口；搜索说明在 `firecrawl` 主技能，不�
 | [anthropic-frontend-design](skills/anthropic-frontend-design/SKILL.md) | 前端视觉设计 | 实现后需要浏览器实测，不仅检查构建 |
 | [anthropic-theme-factory](skills/anthropic-theme-factory/SKILL.md) | 主题资产与排版配色 | 按需，不覆盖用户明确的品牌要求 |
 | [anthropic-web-artifacts-builder](skills/anthropic-web-artifacts-builder/SKILL.md) | 多组件 HTML artifact 构建 | 按需，Node / shell；依赖安装另需授权 |
-
-## 仓库维护（1 个）
-
-| Skill | 用途 | 依赖 / 限制 |
-|-------|------|-------------|
-| [skill-update](skills/skill-update/SKILL.md) | 上游 skill 升级、回流本仓库、提交与收敛（含 `missing-source` 孤儿的删除与基线注销） | 仅用于本仓库；已写入 `EXCLUDED_SKILLS`，不参与同步基线，排除是双向的（仓库改动不会自动导出到本机，需手工复制）；不擅自安装新 skill，删除文件须人工决定并同步账目 |
 
 ## 已合并的 4 个入口
 
