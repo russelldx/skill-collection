@@ -20,6 +20,8 @@ bash validate-skills.sh
 
 验证器只检查必需 frontmatter 字段，不是完整 YAML 解析器；也不执行技能自然语言指令或验证全部正文承诺。另用隔离安装的 PyYAML 6.0.3 对 55 个活动入口的 frontmatter 做过交叉解析（全部有效，0 错误）；该检查不替代运行时行为。
 
+下文的**逐文件静态审查**、**内容哈希对比**和 **PyYAML 交叉解析**中的「55 个」都是当时实际覆盖的同步入口集合，不含本轮新增的仓库维护入口 `skill-update`，也不含本轮删除的孤儿文件。把这些数字统一改成 56 会凭空多出未做过的覆盖，因此保留原值并注明边界：`skill-update` 只经过结构验证器（frontmatter、索引覆盖、本地链接）和 pre-commit 的暂存树校验。
+
 ## 提交时的暂存树校验（只读）
 
 `.githooks/pre-commit` 已替换为只读薄包装：它把 Git 索引中的对象物化到临时目录后用同一验证器校验，只输出提示和错误，**不复制、不暂存、不修改工作区或来源**。本机已将其安装为 `.git/hooks/pre-commit`，旧同步 hook 备份保留为 `.git/hooks/pre-commit.disabled`（勿启用）。行为边界：
@@ -47,7 +49,8 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 测试 | 本轮结果 | 实际覆盖 |
 |------|----------|----------|
 | 仓库验证器 | 17 项通过 | frontmatter 必填字段、链接大小写/相对路径、代码示例排除、索引、归档、MCP 包操作数及缺失命令 |
-| 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出的哈希与方向绑定、`core.autocrlf` 检出字节的容忍；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行 |
+| 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出的哈希与方向绑定、`core.autocrlf` 检出字节的容忍；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行。包装器用例原先把活动入口数写死为 55，改默认值即红；现从 `hook.__defaults__[0]` 派生 fixture 数量与断言，pre-commit 不跑本套件，所以入口数变更后须手工跑一次 |
+| LibreOffice 重算 | 无自动化覆盖 | 原 mock 回归 `test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误（`recalc.signal` 已不存在），已删除；`recalc.py` 本体仍在，重算只在"真实环境中仍需验证"一节记录 |
 | MCP smoke 检查器 | 25 项通过 | 注入内存流与假会话：初始化、分页、超时、清理、isError、结构校验、启动器拒绝、证据标签；不外连 |
 | web-access 浏览器安全 | 12 项通过 | 注入假发现结果：严格选择、身份未确认拒绝复用、启动后身份复核、禁止备用探测、Proxy 复用与授权诊断；不启动浏览器或监听端口 |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
@@ -56,7 +59,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 
 测试在临时目录中生成样本并清理，不使用真实用户文件。运行前需要现有 Python/openpyxl、Node.js、Java 和 Bash；DOCX 生成测试在缺少现有 docx 包时会明确跳过，不能把跳过记作通过。
 
-上游重构后已删除的回归与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目：`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误（测试用 `patch.object(recalc.signal, ...)` 注入的信号处理已不存在），因此连同其命令行一起撤下；`recalc.py` 本身仍在，重算路线改由"真实环境中仍需验证"一节承担，**不再有 mock 层覆盖**。同时删除 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`（能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令）、以及 `anthropic-pptx/editing.md`、`pptxgenjs.md`（内容合并进精简后的 `SKILL.md`，且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`）。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再折回 `SKILL.md`，不靠保留过期副本。
+上游重构后已删除的回归与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目：`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误，因此连同其命令行一起撤下（见上表）。同时删除 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`（能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令）、以及 `anthropic-pptx/editing.md`、`pptxgenjs.md`（内容合并进精简后的 `SKILL.md`，且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`）。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再折回 `SKILL.md`，不靠保留过期副本。
 
 此前会话曾发现：提交 `d6ed444` 的树因错误的同步 hook 用旧版本覆盖，未包含审计修复。其暂存对象（64 个 Git blob）仍存在于本地对象库；本轮已保存恢复前快照，并精确恢复 7 个安全相关脚本（重算、POI 拒绝入口、浏览器、DOCX 生成），上述测试即这些恢复的回归规格。其余参考文档候选的合入仍待逐项复核，未恢复不等于已丢失。
 

@@ -444,8 +444,11 @@ class SyncTests(unittest.TestCase):
         self.assertNotIn("git add", text)
         self.assertNotIn("exit 2", text)
 
-    def test_actual_shell_wrapper_default_55_and_partial_staging(self):
-        for number in range(52):
+    def test_actual_shell_wrapper_default_count_and_partial_staging(self):
+        # The thin wrapper passes no --expected-active, so this exercises the engine default.
+        # setUp already materialises 3 active skills (sample + the two merged destinations).
+        default = self.module.hook.__defaults__[0]
+        for number in range(default - 3):
             name = f"fixture-{number}"
             self.put(self.repo / f"skills/{name}/SKILL.md", ENTRY.replace(b"sample", name.encode()))
             with (self.repo / "INDEX.md").open("ab") as out:
@@ -464,7 +467,7 @@ class SyncTests(unittest.TestCase):
         result = subprocess.run([str(bash), (ROOT / ".githooks/pre-commit").as_posix()], cwd=self.repo,
                                 capture_output=True)
         self.assertEqual(0, result.returncode, result.stdout.decode(errors="replace") + result.stderr.decode(errors="replace"))
-        self.assertIn(b"Active entries: 55; errors: 0", result.stdout)
+        self.assertIn(f"Active entries: {default}; errors: 0".encode(), result.stdout)
         self.assertEqual(before, self.snapshot())
 
     def test_hook_corrupt_baseline_does_not_block(self):
