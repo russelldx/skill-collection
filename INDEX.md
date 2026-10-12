@@ -1,6 +1,6 @@
 # Skill 索引
 
-仅下列 **55 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
+仅下列 **63 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
 
 ## 文档与课程（7 个）
 
@@ -49,7 +49,7 @@
 | [to-prd](skills/to-prd/SKILL.md) | 把已有讨论整理为 PRD | 发布到外部 tracker 另需授权与有效工具 |
 | [to-issues](skills/to-issues/SKILL.md) | 拆分为纵向工单 | 创建或修改远程工单另需授权 |
 
-## 联网与扩展（13 个）
+## 联网与扩展（21 个）
 
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
@@ -62,12 +62,20 @@
 | [firecrawl-interact](skills/firecrawl-interact/SKILL.md) | 云端浏览器交互 | 支持登录及 profile，但不自动继承本机登录态 |
 | [firecrawl-download](skills/firecrawl-download/SKILL.md) | 网站保存为本地文件 | 按需，实验性命令以实际 CLI 版本为准 |
 | [firecrawl-parse](skills/firecrawl-parse/SKILL.md) | Firecrawl 文档解析 | 按需，托管模式上传前明确确认；敏感本地文档优先本地处理 |
+| [firecrawl-search](skills/firecrawl-search/SKILL.md) | 网页检索与数据提供方/工作流发现 | 按需，Firecrawl CLI；结果额度与反馈退款以实际接口为准 |
+| [firecrawl-monitor](skills/firecrawl-monitor/SKILL.md) | 已知 URL 的变更监测与 webhook/邮件告警 | 按需，会安排后续检查任务；目标和范围须先授权 |
+| [firecrawl-alexandria](skills/firecrawl-alexandria/SKILL.md) | 工作流与数据提供方契约执行 | 需 Firecrawl 团队开通该能力；被门控的提供方不会调用 |
+| [firecrawl-developer-index](skills/firecrawl-developer-index/SKILL.md) | 仓库/issue/PR/README/文档索引检索 | 编程问题用；结果仍需核对版本与出处 |
+| [firecrawl-research-index](skills/firecrawl-research-index/SKILL.md) | 论文索引检索与全文问答 | 生物医学与 arXiv 为主，不外推为通用网页搜索 |
+| [firecrawl-build](skills/firecrawl-build/SKILL.md) | 在产品代码中集成 Firecrawl | 按需，会写入应用代码与依赖；先确认端点与密钥来源 |
+| [firecrawl-build-scrape](skills/firecrawl-build-scrape/SKILL.md) | 将 `/scrape` 集成进应用代码 | 页面级集成，不替代批量爬取 |
+| [firecrawl-build-search](skills/firecrawl-build-search/SKILL.md) | 将 `/search` 集成进应用代码 | 从查询出发，需要先有 URL 时接 build-scrape |
 | [firecrawl-build-interact](skills/firecrawl-build-interact/SKILL.md) | 将 interact 集成到产品代码 | 按需，不等同于直接操作网页 |
 | [firecrawl-build-onboarding](skills/firecrawl-build-onboarding/SKILL.md) | 项目 SDK / 凭据接入与端点选择 | 检查 SDK 契约支持，不自动升级、全局安装或提交密钥 |
 | [find-skills](skills/find-skills/SKILL.md) | 按关键词或支持的作者筛选发现技能 | 下载执行须授权；安装量不是安全审核，不全量覆盖定制 |
 | [yida-login](skills/yida-login/SKILL.md) | 宜搭登录态管理 | 按需，OpenYida CLI；先检查已有登录态 |
 
-Firecrawl 共 10 个独立入口；搜索说明在 `firecrawl` 主技能，不存在单独的 `firecrawl-search` 目录。
+Firecrawl 共 18 个独立入口：主技能 `firecrawl` 1 个、CLI 操作技能 7 个（scrape/crawl/map/agent/interact/download/parse）、检索与数据提供方技能 5 个（search/monitor/alexandria/developer-index/research-index）、build 集成技能 5 个（build/build-scrape/build-search/build-interact/build-onboarding）。来源为上游 `firecrawl/cli` 与 `firecrawl/skills` 两个仓库。
 
 ## 写作与交接（4 个）
 

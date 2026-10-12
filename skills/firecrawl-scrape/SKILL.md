@@ -10,7 +10,7 @@ allowed-tools:
 
 Read a URL for page content, or execute a selected provider tool for structured data. Discover tools with `search` and inspect their inputs with `list` before execution. Multiple URLs can be scraped concurrently.
 
-For structured datasets, first check for a suitable workflow or data provider using the `firecrawl-search`. Read a known page directly; reuse a selected contract instead of repeating discovery.
+For structured datasets, first check for a suitable workflow or data provider using the [search skill](../firecrawl-search/SKILL.md). Read a known page directly; reuse a selected contract instead of repeating discovery.
 
 ## Quick start
 
@@ -105,7 +105,7 @@ The cap applies to each PDF, not the whole command or total credits. Extra forma
 
 ## See also
 
-- `firecrawl-search` — find pages when you don't have a URL
+- [firecrawl-search](../firecrawl-search/SKILL.md) — find pages when you don't have a URL
 - [firecrawl-interact](../firecrawl-interact/SKILL.md) — when scrape can't get the content, use `interact` to click, fill forms, etc.
 - [firecrawl-download](../firecrawl-download/SKILL.md) — bulk download an entire site to local files
 - [firecrawl-build-scrape](https://github.com/firecrawl/skills/tree/main/skills/build/firecrawl-build-scrape) — building scrape into an app instead of running it here

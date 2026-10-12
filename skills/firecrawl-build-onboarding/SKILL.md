@@ -82,10 +82,10 @@ Then decide which integration path applies:
 | **Provision the key through Stripe Projects** | [docs.firecrawl.dev/integrations/stripe-projects](https://docs.firecrawl.dev/integrations/stripe-projects) |
 | **Install the right SDK** | [references/sdk-installation.md](references/sdk-installation.md) |
 | **Put credentials into `.env` or project config** | [references/project-setup.md](references/project-setup.md) |
-| **Choose the right endpoint after setup** | `firecrawl-build` |
+| **Choose the right endpoint after setup** | [firecrawl-build](../firecrawl-build/SKILL.md) |
 | **Need live web tooling during this task** | The CLI skills are already installed from the same command |
-| **Start implementation from a known URL** | `firecrawl-build-scrape` |
-| **Start implementation from a query** | `firecrawl-build-search` |
+| **Start implementation from a known URL** | [firecrawl-build-scrape](../firecrawl-build-scrape/SKILL.md) |
+| **Start implementation from a query** | [firecrawl-build-search](../firecrawl-build-search/SKILL.md) |
 
 ## Docs (Source of Truth)
 

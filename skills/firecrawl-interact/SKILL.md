@@ -66,6 +66,6 @@ firecrawl scrape "https://app.example.com" --profile my-app --no-save-changes
 ## See also
 
 - [firecrawl-scrape](../firecrawl-scrape/SKILL.md) — try scrape first, escalate to interact only when needed
-- `firecrawl-search` — use `search` for web searches
+- [firecrawl-search](../firecrawl-search/SKILL.md) — use `search` for web searches
 - [firecrawl-agent](../firecrawl-agent/SKILL.md) — AI-powered extraction (less manual control)
 - [firecrawl-build-interact](https://github.com/firecrawl/skills/tree/main/skills/build/firecrawl-build-interact) — building interact into an app instead of running it here

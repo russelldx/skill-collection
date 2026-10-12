@@ -2,7 +2,7 @@
 
 按任务选择技能，而不是全量安装。Skill 提供工作流程，MCP/CLI 提供工具；两者不能互相替代。
 
-本仓库保留原有 **63 个 skill 的内容**，整理为 **55 个活动入口、4 个合并参考、4 个暂停入口**。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过。
+本仓库保留原有 **63 个 skill 的内容**（55 个活动入口 + 4 个合并参考 + 4 个暂停入口），并按用户授权从上游 `firecrawl/cli`、`firecrawl/skills` 新增 8 个检索与集成入口，现为 **63 个活动入口**。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过；新增的 8 个入口只做过结构、frontmatter、本地链接与凭据扫描，未做端到端运行验证。
 
 ## 快速开始
 
@@ -28,7 +28,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 
 | 状态 | 数量 | 位置 / 含义 |
 |------|------|-------------|
-| 活动 | 55 | `skills/<name>/SKILL.md`，按需安装；个别执行分支仍有明确限制 |
+| 活动 | 63 | `skills/<name>/SKILL.md`，按需安装；个别执行分支仍有明确限制 |
 | 已合并 | 4 | 原内容保留为主技能的 `references/**/REFERENCE.md`，不再单独自动触发 |
 | 暂停 | 4 | `archive/disabled/<name>/REFERENCE.md`，仅供审阅，不安装、不运行 hooks 或启动循环 |
 
@@ -40,7 +40,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 
 暂停项：`superpowers-using-superpowers`、`superpowers-finishing-a-development-branch`、`pua-pua`、`pua-pua-loop`。归档保留来源和代码，不代表缺陷已全部修复或已获重新启用授权。
 
-`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出不进入同步基线的名称：4 个暂停入口、4 个已合并来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`），以及按作者要求**不入库**的 `daibi`、`tuomin`。排除是双向的：工具既不把这些目录从本机回流到仓库，也不把仓库改动导出到本机。`check` 输出里的 `excluded-or-inactive` 还会出现本机装着、仓库根本没有的条目（例如宿主内置的 `deep-research`），那是预期状态，不是漏同步。
+`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出不进入同步基线的名称：4 个暂停入口、4 个已合并来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`），以及按作者要求**不入库**的 `daibi`、`tuomin`。排除是双向的：工具既不把这些目录从本机回流到仓库，也不把仓库改动导出到本机。`check` 输出里的 `excluded-or-inactive` 还会出现两类根本没有仓库副本的条目：宿主内置的 `deep-research`，以及只作为本地 skill 存在、仓库与 GitHub 都不发布的 `skill-update`（由 `.gitignore` 的 `skills/skill-update/` 守卫路径兜底）。这些都是预期状态，不是漏同步，不要为了消掉提示行把它们 import 进仓库。
 
 ## 按场景选择
 

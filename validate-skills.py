@@ -74,7 +74,7 @@ def frontmatter_field(header, key):
     return value.strip("\"'")
 
 
-def validate(root, expected_active=55, require_archives=True):
+def validate(root, expected_active=63, require_archives=True):
     root = Path(root).resolve()
     errors = []
     if not (root / "skills").is_dir():
@@ -150,7 +150,7 @@ def validate(root, expected_active=55, require_archives=True):
 def main():
     parser = argparse.ArgumentParser(description="Read-only skill structure, index and local link checks; no runtime or full YAML validation.")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent)
-    parser.add_argument("--expected-active", type=int, default=55)
+    parser.add_argument("--expected-active", type=int, default=63)
     args = parser.parse_args()
     errors = validate(args.root, args.expected_active)
     for error in errors:
