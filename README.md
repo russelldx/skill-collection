@@ -2,13 +2,13 @@
 
 按任务选择技能，而不是全量安装。Skill 提供工作流程，MCP/CLI 提供工具；两者不能互相替代。
 
-本仓库保留原有 **63 个 skill 的内容**，整理为 **55 个活动入口、4 个合并参考、4 个暂停入口**；另自维护 1 个仓库流程入口 `skill-update`（不参与同步），合计 **56 个活动入口**。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过。
+本仓库保留原有 **63 个 skill 的内容**，整理为 **55 个活动入口、4 个合并参考、4 个暂停入口**；仓库另自维护 1 个流程入口 `skill-update`（不参与同步，也不作为按需安装对象），因此 `skills/` 下合计 **56 个活动入口**。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过。
 
 ## 快速开始
 
 将本仓库地址或 `README.md` + [INDEX.md](./INDEX.md) 交给你的 agent，让它：
 
-1. 根据任务从 `skills/` 选择需要的技能，不扫描归档作为可安装技能。
+1. 根据任务从 `skills/` 选择需要的技能，不扫描归档作为可安装技能；`skill-update` 是本仓库自身的维护流程，不属于按需安装范围。
 2. 检查目标环境的运行时、工具、子代理能力及已安装版本。
 3. 核对所选目录的来源和许可；说明待安装目录和依赖，得到授权后安装；目标目录已存在时先比较，不覆盖。
 4. 单独确认 MCP、凭据、全局依赖和 hooks 的配置，不能把安装技能视为授权这些操作。
@@ -39,6 +39,8 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 - `pua-mama`、`pua-yes` → 已归档 PUA 核心的文风参考，随核心暂停。
 
 暂停项：`superpowers-using-superpowers`、`superpowers-finishing-a-development-branch`、`pua-pua`、`pua-pua-loop`。归档保留来源和代码，不代表缺陷已全部修复或已获重新启用授权。
+
+`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出不进入同步基线的名称：4 个暂停入口、4 个已合并来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`）、自创的 `daibi`/`tuomin`，以及仓库维护入口 `skill-update`。排除是双向的：工具既不把这些目录从本机回流到仓库，也不把仓库改动导出到本机。因此 `skill-update` 自身更新后必须手工复制到已安装位置，否则仓库副本与本机副本会长期分叉。`check` 输出里的 `excluded-or-inactive` 还包含本机装着、但仓库根本没有的条目（例如 `deep-research`），那是未纳管状态，不代表已同步。
 
 ## 按场景选择
 

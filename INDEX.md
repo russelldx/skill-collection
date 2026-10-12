@@ -103,7 +103,7 @@ Firecrawl 共 10 个独立入口；搜索说明在 `firecrawl` 主技能，不�
 
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
-| [skill-update](skills/skill-update/SKILL.md) | 上游 skill 升级、回流本仓库、提交与收敛 | 仅用于本仓库；已写入 `EXCLUDED_SKILLS`，不参与同步基线；不擅自安装新 skill，不删除文件 |
+| [skill-update](skills/skill-update/SKILL.md) | 上游 skill 升级、回流本仓库、提交与收敛（含 `missing-source` 孤儿退休七步之外的删除与基线注销） | 仅用于本仓库；已写入 `EXCLUDED_SKILLS`，不参与同步基线，排除是双向的（仓库改动不会自动导出到本机，需手工复制）；不擅自安装新 skill，删除文件须人工决定并同步账目 |
 
 ## 已合并的 4 个入口
 
