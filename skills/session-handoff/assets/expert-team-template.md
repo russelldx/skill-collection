@@ -21,6 +21,12 @@
 - main-role:（isolation: on 时必填；持有 `.handoff/main/` 完整上下文，唯一信息路由器）
 - isolated-roles:（逗号分隔；各占 `.handoff/roles/<role>/`，读 BRIEF.md，写 OUTBOX.md / QUESTIONS.md / work/）
 
+## 会话内并行派发（仅 Qoder CLI · 增量开关）
+
+> 协议见 skill `references/qodercli-agent-team.md`。默认 off；本块缺失、off、或非 Qoder CLI 宿主时，上文跨会话模式行为完全不受影响。
+
+- inline-dispatch: off（on：主会话为唯一派发者与唯一写入者；同轮并行任务文件域不得重叠，或经用户许可用 worktree 隔离；批次核验通过后**立即补录**交接文档 + 回写本表与 STATE.json；prompt 只写事实与验收标准，不喂结论；agent 不得 git commit/push）
+
 ## 任务板
 
 | # | 任务 | 负责角色 | 文件域（禁止越界） | 依赖 | 状态 | 验证证据 |
@@ -28,6 +34,7 @@
 | 1 | | | | 无 | 待认领 | |
 
 - 状态取值：待认领 / 进行中(角色,日期) / 已完成 / 阻塞(原因)
+- inline-dispatch: on 时的补充：会话内派发任务用 `派发中(角色,日期)` 替代 `进行中`，「负责角色」列标注 `(在会话)`/`(跨会话)`；其余状态语义不变
 - 文件域重叠检查：认领前扫描本表"进行中"任务的文件域——与他人任务重叠即停手并留言等裁决；与同角色自己的进行中任务重叠，披露留痕后可继续，但不得改其已有产物
 
 ## 协调记录（跨会话通信区）
