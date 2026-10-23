@@ -74,7 +74,7 @@ handoff.py status        [<root>] [--status ..] [--stale-days N] [--format table
 handoff.py install-hooks [--source DIR --target DIR]    # 把 skill hooks/*.sh 部署到 ~/.qoder/hooks（备份+sha256 校验）
 ```
 
-主文档定位顺序：`HANDOFF.md` → 根目录唯一 `*交接*.md` / `*实施计划*.md` → `--doc` 显式指定；有多个候选又不给 `--doc` 时报错而不是猜。`index` 默认写 `INDEX.md`；若目标已存在且没有「自动生成的只读视图」标记（= 手工维护），自动改写到 `INDEX.generated.md` 并提示；显式 `--out` 指向手工文件会被拒绝（exit 2），须加 `--force`。
+主文档定位顺序：`HANDOFF.md` → 根目录唯一 `*交接*.md` / `*实施计划*.md` → `--doc` 显式指定；有多个候选又不给 `--doc` 时报错而不是猜。`index` 默认写 `INDEX.md`；判定"是否生成文件"只看**首行是否完全等于** `# 交接索引（自动生成的只读视图）`（正文引用这串字不算），不是生成文件即视为手工维护，自动改写到 `INDEX.generated.md` 并提示；显式 `--out` 指向手工文件会被拒绝（exit 2），须加 `--force`。
 
 `INDEX.md` 是人机共享的只读视图：节号稳定、tag→定位倒排，新会话可先扫 INDEX 再决定读哪节，避免整篇 load。`index` 只测体积、报哪些已闭环节可折，不替你决定"可执行事实"。若项目的 `INDEX.md` 是手工维护的，`index` 会自动让路写 `INDEX.generated.md`，两份可并存。
 

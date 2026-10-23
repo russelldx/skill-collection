@@ -309,9 +309,13 @@ def cmd_validate(a):
     return 2 if errs else (1 if warns else 0)
 
 # ---------- index ----------
+GENERATED_INDEX_HEAD = '# 交接索引（自动生成的只读视图）'
+
 def is_generated_index(p):
+    # 只认首行完全相等：手工索引正文里可能引用这串字，子串匹配会误判并覆盖手工文件
     try:
-        return '自动生成的只读视图' in read_text(p)[:500]
+        first = read_text(p).lstrip('\ufeff').split('\n', 1)[0].strip()
+        return first == GENERATED_INDEX_HEAD
     except Exception:
         return False
 
@@ -327,7 +331,7 @@ def cmd_index(a):
     active = [d for d in docs if d['bucket'] == 'active']
     total_active = sum(d['size'] for d in active if d['secno'] != 0)
     src = os.path.basename(main) if main else 'archive/'
-    lines = ['# 交接索引（自动生成的只读视图）', '',
+    lines = [GENERATED_INDEX_HEAD, '',
              '> 由 `handoff.py index` 重建（源：%s）。节号稳定，archive 按 `grep -n "^## N、"` 点查，禁止整篇读入。' % src, '']
     lines.append('| § | 标题 | tags | 体积 | 位置 |')
     lines.append('|---|------|------|------|------|')
