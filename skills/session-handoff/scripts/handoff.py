@@ -9,11 +9,15 @@ handoff.py — session-handoff 的读模型 + 分层压缩 + 本地检索工具�
   - §0 滚动摘要 + milestones 是时序库降采样（rollup），archive 是冷存点查
   - search 子命令 = 本地 BM25 检索（替代 claude-mem：不联网、不装包、CJK 友好）
 
+主文档定位：默认 HANDOFF.md；若不存在，自动识别根部唯一的 *交接*.md / *实施计划*.md
+（如本仓库的 交接文档.md）；也可用 --doc 显式指定。手工维护的 INDEX.md 不会被 index 覆盖。
+
 子命令：
-  init     <dir>                      生成一套会话目录（HANDOFF.md/STATE.json/archive/.backup/INDEX.md）
-  validate <dir> [--fix-hint]         校验 STATE.json 结构 + 快照 vs 日志的新鲜度 + 一致性，报"待折叠"
-  index    <dir> [--max-bytes N]      重建 INDEX.md（节号/标题/tags/体积），并提示应折叠的节
-  search   <dir> "<query>" [-k K]     对 active + archive 全部小节做 BM25 排序，回节号 + 定位行
+  init     <dir> [--doc NAME]         生成一套会话目录（HANDOFF.md 或指定名/STATE.json/archive/.backup/INDEX.md）
+  validate <dir> [--doc NAME]         校验 STATE.json 结构 + 快照 vs 日志的新鲜度 + 一致性，报"待折叠"
+  index    <dir> [--doc NAME] [--out FILE] [--max-bytes N] [--force]
+                                      重建索引（节号/标题/tags/体积），并提示应折叠的节
+  search   <dir> "<query>" [-k K] [--doc NAME]  对 active + archive 全部小节做 BM25 排序，回节号 + 定位行
   status   [<root>] [--status ...]    跨会话总览：遍历 root 下所有 STATE.json 出当前态大表（--format json 供机器消费）
   install-hooks [--source DIR] [--target DIR]  把 skill/hooks/*.sh 部署到 ~/.qoder/hooks（备份 + sha256 校验）
 
@@ -43,6 +47,43 @@ def write_text(p, s):
         os.makedirs(d, exist_ok=True)
     with open(p, 'w', encoding='utf-8', newline='') as f:
         f.write(s)
+
+MAIN_DOC_DEFAULT = 'HANDOFF.md'
+MAIN_DOC_GLOBS = ('*交接*.md', '*实施计划*.md')
+
+def main_doc_candidates(root):
+    cands = []
+    for pat in MAIN_DOC_GLOBS:
+        cands.extend(glob.glob(os.path.join(root, pat)))
+    out = []
+    for f in sorted(set(cands)):
+        base = os.path.basename(f)
+        if base.lower().startswith('index') or '索引' in base:
+            continue
+        if os.path.isfile(f):
+            out.append(f)
+    return out
+
+def resolve_main_doc(root, doc=None):
+    """返回 (path, candidates)。path=None 表示未找到或存在歧义。"""
+    root = os.path.abspath(root)
+    if doc:
+        p = doc if os.path.isabs(doc) else os.path.join(root, doc)
+        return (p, [p]) if os.path.isfile(p) else (None, [p])
+    p = os.path.join(root, MAIN_DOC_DEFAULT)
+    if os.path.isfile(p):
+        return p, [p]
+    cands = main_doc_candidates(root)
+    return (cands[0], cands) if len(cands) == 1 else (None, cands)
+
+def doc_error(root, doc, cands):
+    """主文档定位失败时返回可打印错误；成功返回 None。"""
+    if doc:
+        return 'ERR 主文档不存在：' + cands[0]
+    if len(cands) > 1:
+        return ('ERR 主文档不唯一，请用 --doc 指定：' +
+                '、'.join(os.path.basename(c) for c in cands))
+    return None
 
 def split_sections(path):
     """把 markdown 切成 {preamble, sections[]}。section: secno,title,start_line,tags[],text。
@@ -78,8 +119,9 @@ def extract_tags(body):
             return [t.strip() for t in re.split(r'[、,，;；]', m.group(1)) if t.strip()]
     return []
 
-def all_docs(root):
-    files = [os.path.join(root, 'HANDOFF.md')]
+def all_docs(root, doc=None):
+    main, _ = resolve_main_doc(root, doc)
+    files = [main] if main else []
     files += sorted(glob.glob(os.path.join(root, 'archive', '**', '*.md'), recursive=True))
     files += sorted(glob.glob(os.path.join(root, 'milestones.md')))
     files = [f for f in files if os.path.isfile(f)]
@@ -125,12 +167,14 @@ def bm25(query, docs, k1=1.5, b=0.75):
 
 # ---------- STATE.json ----------
 STATE_SCHEMA = {
-    'schemaVersion': int, 'session': str, 'title': str, 'phase': str,
-    'status': str, 'updatedAt': str,
+    'phase': str, 'status': str, 'updatedAt': str,
     'openBlockers': list, 'nextActions': list, 'fileOwnership': dict,
+}
+STATE_OPTIONAL_SCHEMA = {
+    'schemaVersion': int, 'session': str, 'title': str,
     'artifacts': list, 'keyDecisions': list, 'tags': list,
 }
-VALID_STATUS = {'in-progress', 'blocked', 'done'}
+VALID_STATUS = {'in-progress', 'blocked', 'done', 'ready'}
 
 def state_template():
     now = time.strftime('%Y-%m-%dT%H:%M:%S')
@@ -187,7 +231,8 @@ def cmd_init(a):
         print('ERR 目录非空（加 --force 覆盖模板文件）：' + root); return 2
     os.makedirs(os.path.join(root, 'archive'), exist_ok=True)
     os.makedirs(os.path.join(root, '.backup'), exist_ok=True)
-    hp = os.path.join(root, 'HANDOFF.md')
+    doc_name = a.doc or MAIN_DOC_DEFAULT
+    hp = os.path.join(root, doc_name)
     if not os.path.isfile(hp) or a.force:
         write_text(hp, HANDOFF_SHELL.format(title=a.title or os.path.basename(root),
                  phase=a.phase or '未定', date=time.strftime('%Y-%m-%d')))
@@ -197,13 +242,13 @@ def cmd_init(a):
         st['title'] = a.title or os.path.basename(root); st['phase'] = a.phase or '未定'
         write_text(sp, json.dumps(st, ensure_ascii=False, indent=2) + '\n')
     print('init ok →', root)
-    print('  HANDOFF.md  STATE.json  archive/  .backup/  （INDEX.md 由 `index` 生成）')
+    print('  %s  STATE.json  archive/  .backup/  （INDEX.md 由 `index` 生成）' % doc_name)
     return 0
 
 # ---------- validate ----------
-def newest_section_date(root):
+def newest_section_date(root, doc=None):
     ds = []
-    for s in all_docs(root):
+    for s in all_docs(root, doc):
         m = re.search(r'(20\d\d-\d\d-\d\d)', s['title'])
         if m: ds.append(m.group(1))
         m2 = re.search(r'(20\d\d-\d\d-\d\d)', s['text'][:80])
@@ -212,29 +257,50 @@ def newest_section_date(root):
 
 def cmd_validate(a):
     root = os.path.abspath(a.dir); sp = os.path.join(root, 'STATE.json'); warns = []; errs = []
+    main, cands = resolve_main_doc(root, a.doc)
+    derr = doc_error(root, a.doc, cands)
+    if derr:
+        print(derr); return 2
+    if not main:
+        warns.append('未找到主文档（HANDOFF.md 或根部唯一 *交接*.md），仅校验 STATE.json')
     if not os.path.isfile(sp):
         print('ERR 缺 STATE.json（读模型快照）'); return 2
     try: st = json.loads(read_text(sp))
     except Exception as e:
         print('ERR STATE.json 解析失败：', e); return 2
+    if not isinstance(st, dict):
+        print('ERR STATE.json 顶层应为对象'); return 2
     for k, ty in STATE_SCHEMA.items():
         if k not in st: errs.append('缺字段 ' + k)
         elif not isinstance(st[k], ty): errs.append('%s 类型应为 %s' % (k, ty.__name__))
+    for k, ty in STATE_OPTIONAL_SCHEMA.items():
+        if k in st and not isinstance(st[k], ty):
+            errs.append('%s 类型应为 %s（可选字段）' % (k, ty.__name__))
     if st.get('status') not in VALID_STATUS and 'status' in st:
         errs.append('status 非法：%s（取 %s）' % (st.get('status'), sorted(VALID_STATUS)))
-    # 一致性：nextActions 里 done 的不应还在 openBlockers 文本里出现
-    donetext = ' '.join(x.get('desc', '') for x in st.get('nextActions', []) if isinstance(x, dict) and x.get('done'))
-    for b in st.get('openBlockers', []):
+    # 一致性：nextActions 里 done 的不应还在 openBlockers 文本里出现（兼容 str 与 {desc,done}）
+    donetext = ' '.join(
+        (x.get('desc', '') if isinstance(x, dict) else str(x))
+        for x in (st.get('nextActions') or [])
+        if not isinstance(x, dict) or x.get('done')
+    )
+    for b in (st.get('openBlockers') or []):
         if donetext and b and b in donetext:
             warns.append('blocker 疑似已完成却仍列 openBlockers：%s' % b)
     # 新鲜度：STATE.updatedAt 日期 不应早于 最新小节日期（快照落后日志 → 坏快照比没快照更有害）
-    nd = newest_section_date(root)
+    nd = newest_section_date(root, a.doc)
     upd = (st.get('updatedAt') or '')[:10]
     if nd and upd and upd < nd:
         warns.append('STATE.updatedAt(%s) 早于最新小节(%s) → 快照可能过期，刷新 STATE.json 与 §0' % (upd, nd))
-    # fileOwnership 存在性
+    # fileOwnership 存在性：值为说明字符串时跳过（允许本地文档式写法）
     for role, paths in (st.get('fileOwnership') or {}).items():
+        if isinstance(paths, str):
+            continue
+        if not isinstance(paths, list):
+            warns.append('fileOwnership[%s] 值应为路径列表或说明字符串' % role); continue
         for g in paths:
+            if not isinstance(g, str):
+                warns.append('fileOwnership[%s] 含非字符串路径：%r' % (role, g)); continue
             if not glob.glob(g.replace('\\\\', os.sep)) and not os.path.exists(g):
                 warns.append('fileOwnership[%s] 路径查无（可能失效）：%s' % (role, g))
     for e in errs: print('ERROR:', e)
@@ -243,13 +309,26 @@ def cmd_validate(a):
     return 2 if errs else (1 if warns else 0)
 
 # ---------- index ----------
+def is_generated_index(p):
+    try:
+        return '自动生成的只读视图' in read_text(p)[:500]
+    except Exception:
+        return False
+
 def cmd_index(a):
     root = os.path.abspath(a.root)
-    docs = all_docs(root)
+    main, cands = resolve_main_doc(root, a.doc)
+    derr = doc_error(root, a.doc, cands)
+    if derr:
+        print(derr); return 2
+    if not main:
+        print('WARN 未找到主文档（HANDOFF.md 或根部唯一 *交接*.md），仅索引 archive/')
+    docs = all_docs(root, a.doc)
     active = [d for d in docs if d['bucket'] == 'active']
     total_active = sum(d['size'] for d in active if d['secno'] != 0)
+    src = os.path.basename(main) if main else 'archive/'
     lines = ['# 交接索引（自动生成的只读视图）', '',
-             '> 由 `handoff.py index` 重建。节号稳定，archive 按 `grep -n "^## N、"` 点查，禁止整篇读入。', '']
+             '> 由 `handoff.py index` 重建（源：%s）。节号稳定，archive 按 `grep -n "^## N、"` 点查，禁止整篇读入。' % src, '']
     lines.append('| § | 标题 | tags | 体积 | 位置 |')
     lines.append('|---|------|------|------|------|')
     for d in sorted(docs, key=lambda x: (x['bucket'] != 'active', x['secno'] if x['secno'] is not None else 999)):
@@ -275,7 +354,16 @@ def cmd_index(a):
                 % (total_active, a.max_bytes)) + '\n'.join(
                 '- §%s %s（%dB）' % (c['secno'], c['title'][:30], c['size']) for c in closed[:8])
     lines.append(hint)
-    ip = os.path.join(root, 'INDEX.md')
+    out = a.out or 'INDEX.md'
+    ip = out if os.path.isabs(out) else os.path.join(root, out)
+    if os.path.isfile(ip) and not is_generated_index(ip) and not a.force:
+        if a.out:
+            print('ERR 目标不是 handoff.py 生成（未见自动生成标记）：' + ip)
+            print('     手工索引不会被覆盖；换 --out，或确认后加 --force')
+            return 2
+        fallback = os.path.join(root, 'INDEX.generated.md')
+        print('NOTE 目标 INDEX.md 为手工维护，改写 %s（--out/--force 可指定）' % fallback)
+        ip = fallback
     write_text(ip, '\n'.join(lines) + '\n')
     print('wrote', ip, '(活跃区 %dB)' % total_active)
     if hint: print(hint.strip())
@@ -288,7 +376,13 @@ def snippet(text, n=120):
 
 def cmd_search(a):
     root = os.path.abspath(a.dir)
-    docs = all_docs(root)
+    main, cands = resolve_main_doc(root, a.doc)
+    derr = doc_error(root, a.doc, cands)
+    if derr:
+        print(derr); return 2
+    if not main:
+        print('WARN 未找到主文档（HANDOFF.md 或根部唯一 *交接*.md），仅检索 archive/')
+    docs = all_docs(root, a.doc)
     hits = bm25(a.query, docs)[:a.k]
     if not hits: print('（无匹配，试更短的关键词，或确认 archive 内容）'); return 1
     print('query=%r  命中 %d（top %d）' % (a.query, len(hits), a.k))
@@ -301,7 +395,7 @@ def cmd_search(a):
 
 # ---------- status：跨会话总览 ----------
 STATUS_SKIP_DIRS = {'.backup', 'archive', 'node_modules', '.git', '__pycache__', '.venv'}
-STATUS_PRIORITY = {'blocked': 0, 'in-progress': 1, 'done': 2}
+STATUS_PRIORITY = {'blocked': 0, 'in-progress': 1, 'ready': 2, 'done': 3}
 
 def _age_days(iso):
     if not iso: return None
@@ -431,10 +525,10 @@ def cmd_install_hooks(a):
 def main():
     ap = argparse.ArgumentParser(prog='handoff.py', description='session-handoff 读模型/分层/本地检索（离线）')
     sub = ap.add_subparsers(dest='cmd', required=True)
-    p = sub.add_parser('init'); p.add_argument('dir'); p.add_argument('--title'); p.add_argument('--phase'); p.add_argument('--force', action='store_true'); p.set_defaults(func=cmd_init)
-    p = sub.add_parser('validate'); p.add_argument('dir'); p.add_argument('--fix-hint', action='store_true'); p.set_defaults(func=cmd_validate)
-    p = sub.add_parser('index'); p.add_argument('root'); p.add_argument('--max-bytes', type=int, default=20480); p.set_defaults(func=cmd_index)
-    p = sub.add_parser('search'); p.add_argument('dir'); p.add_argument('query'); p.add_argument('-k', type=int, default=5); p.set_defaults(func=cmd_search)
+    p = sub.add_parser('init'); p.add_argument('dir'); p.add_argument('--doc', help='主文档名，默认 HANDOFF.md'); p.add_argument('--title'); p.add_argument('--phase'); p.add_argument('--force', action='store_true'); p.set_defaults(func=cmd_init)
+    p = sub.add_parser('validate'); p.add_argument('dir'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--fix-hint', action='store_true'); p.set_defaults(func=cmd_validate)
+    p = sub.add_parser('index'); p.add_argument('root'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--out', help='输出文件名/路径，默认 INDEX.md'); p.add_argument('--max-bytes', type=int, default=20480); p.add_argument('--force', action='store_true', help='允许覆盖非自动生成的索引'); p.set_defaults(func=cmd_index)
+    p = sub.add_parser('search'); p.add_argument('dir'); p.add_argument('query'); p.add_argument('-k', type=int, default=5); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.set_defaults(func=cmd_search)
     p = sub.add_parser('status', help='跨会话总览：遍历 root 下 STATE.json 出当前态大表')
     p.add_argument('root', nargs='?', default='.'); p.add_argument('--status', help='逗号分隔过滤，如 in-progress,blocked')
     p.add_argument('--stale-days', type=int, help='只显示 updatedAt ≥ N 天前的'); p.add_argument('--max-depth', type=int, default=4)

@@ -7,7 +7,7 @@
 
 ## 一、读模型：STATE.json（物化视图 / read model）
 
-`HANDOFF.md` 同目录放一份 `STATE.json` —— **给机器读的当前态快照**，有界、不增长、每次会话刷新。人读 markdown，机器读 STATE.json，各走各的。
+主交接文档同目录放一份 `STATE.json` —— **给机器读的当前态快照**，有界、不增长、每次会话刷新。人读 markdown，机器读 STATE.json，各走各的。主文档默认按 `HANDOFF.md` 找；没有时自动识别根目录下唯一的 `*交接*.md` / `*实施计划*.md`（多个候选须用 `--doc` 指定）。
 
 字段（保持极小，别塞进散文）：
 
@@ -16,7 +16,7 @@
 | `schemaVersion` | int | 结构版本，向后兼容用，当前 1 |
 | `session` / `title` | str | 会话标识 / 任务主题 |
 | `phase` | str | 当前聚焦（一句话） |
-| `status` | str | `in-progress` \| `blocked` \| `done` |
+| `status` | str | `in-progress` \| `blocked` \| `ready` \| `done` |
 | `updatedAt` | str | ISO 时间；**校验器用它判快照是否落后日志** |
 | `openBlockers[]` | list | 未决阻塞（只列还开着的，done 的移出） |
 | `nextActions[]` | list[obj] | `{id,desc,owner,done}` 机器可执行待办 |
@@ -24,6 +24,8 @@
 | `artifacts[]` | list[obj] | `{path,purpose}` 关键产物 |
 | `keyDecisions[]` | list[obj] | `{id,date,decision}` 决策留痕 |
 | `tags[]` | list | 全局标签，喂检索与索引 |
+
+**必填 vs 可选**：`phase` / `status` / `updatedAt` / `openBlockers` / `nextActions` / `fileOwnership` 必填；`schemaVersion` / `session` / `title` / `artifacts` / `keyDecisions` / `tags` 可选（旧目录缺了不报错）。`nextActions` 元素可为字符串，也可为 `{id,desc,owner,done}`；`fileOwnership` 的值可为 glob 列表（检查路径存在），也可为散文说明（跳过存在性检查）。这样能兼容已有手工维护的 STATE 变体，不强迫重写。
 
 **单一真相源原则**：STATE.json 是**派生视图**，不是第二份手写账。规则是"markdown 有、STATE 也要同步刷新"；不确定就以 markdown 为准重生成 STATE。`validate` 会抓两类漂移：`updatedAt` 早于最新小节（快照过期）、`fileOwnership` 路径查无（引用失效）。
 
@@ -42,7 +44,7 @@ Tier 4  （语义召回）        —— 原计划交 claude-mem；因网络不�
 **折叠（fold）操作**——活跃区超 Tier1 阈值时，对每个"已标完成/定稿/不改"的最旧节 §n：
 
 1. `extract_actionable_facts(§n)`：只抽"可执行事实"（结论/路径/仍生效的坑/未决），**叙事丢弃、事实零损失**；把结果合并进 §0（去重、同类合并，沿用 archiving.md 既有纪律）。
-2. 原文整节**逐字**移入 `archive/HANDOFF.md`（保留原节号，跨节引用仍可 `grep`）。
+2. 原文整节**逐字**移入 `archive/<同名主文档>`（如 `archive/交接文档.md`；保留原节号，跨节引用仍可 `grep`）。
 3. §0 若自身超 ~4 KB：把更早的里程碑折进 `milestones.md`（Tier 2 递归）。
 4. 刷新 STATE.json（`updatedAt`、`phase`、`openBlockers`、`nextActions`）。
 
@@ -64,17 +66,19 @@ python scripts/handoff.py search "<交接目录>" "关键词 或 中文短语" -
 ## 四、六个子命令
 
 ```bash
-handoff.py init          <dir> [--title T --phase P]   # 生成 HANDOFF.md(含§0) + STATE.json + archive/ + .backup/
-handoff.py validate      <dir>                          # 校验 STATE.json 结构/新鲜度/一致性；退出码 0/1/2
-handoff.py index         <dir> [--max-bytes N]          # 重建 INDEX.md（节号/tags/体积倒排）+ 顶部"⚠ 待折叠"清单
-handoff.py search        <dir> "<query>" [-k K]         # 本地 BM25 找回旧结论（活跃区+archive）
+handoff.py init          <dir> [--doc NAME] [--title T --phase P]  # 生成主文档(含§0，默认 HANDOFF.md) + STATE.json + archive/ + .backup/
+handoff.py validate      <dir> [--doc NAME]              # 校验 STATE.json 结构/新鲜度/一致性；退出码 0/1/2
+handoff.py index         <dir> [--doc NAME] [--max-bytes N] [--out FILE --force]  # 重建检索索引（节号/tags/体积倒排）+ 顶部"⚠ 待折叠"清单
+handoff.py search        <dir> "<query>" [--doc NAME] [-k K]  # 本地 BM25 找回旧结论（活跃区+archive）
 handoff.py status        [<root>] [--status ..] [--stale-days N] [--format table|json]  # 跨会话当前态大表
 handoff.py install-hooks [--source DIR --target DIR]    # 把 skill hooks/*.sh 部署到 ~/.qoder/hooks（备份+sha256 校验）
 ```
 
-`INDEX.md` 是人机共享的只读视图：节号稳定、tag→定位倒排，新会话可先扫 INDEX 再决定读哪节，避免整篇 load。`index` 只测体积、报哪些已闭环节可折，不替你决定"可执行事实"。
+主文档定位顺序：`HANDOFF.md` → 根目录唯一 `*交接*.md` / `*实施计划*.md` → `--doc` 显式指定；有多个候选又不给 `--doc` 时报错而不是猜。`index` 默认写 `INDEX.md`；若目标已存在且没有「自动生成的只读视图」标记（= 手工维护），自动改写到 `INDEX.generated.md` 并提示；显式 `--out` 指向手工文件会被拒绝（exit 2），须加 `--force`。
 
-`status` 是**跨文档全局索引的"当前态"那一半**：递归 root 下所有 `STATE.json`（自动跳过 `.backup/archive/node_modules/.git` 等），每个任务一行，按 `blocked < in-progress < done` 优先级、再按"距今多少天"降序排——所以下面几个总是最该接的。`--status blocked,in-progress` 只看没闭环的，`--stale-days 7` 只揪一周没动静的僵尸任务，`--format json` 给脚本/仪表盘消费。它只读 STATE.json（读模型），不 parse 大段 markdown，所以很快；前提是每个会话都守住了"改文档同轮刷 STATE"的规矩（漏刷的会被 validate 抓）。
+`INDEX.md` 是人机共享的只读视图：节号稳定、tag→定位倒排，新会话可先扫 INDEX 再决定读哪节，避免整篇 load。`index` 只测体积、报哪些已闭环节可折，不替你决定"可执行事实"。若项目的 `INDEX.md` 是手工维护的，`index` 会自动让路写 `INDEX.generated.md`，两份可并存。
+
+`status` 是**跨文档全局索引的"当前态"那一半**：递归 root 下所有 `STATE.json`（自动跳过 `.backup/archive/node_modules/.git` 等），每个任务一行，按 `blocked < in-progress < ready < done` 优先级、再按"距今多少天"降序排——所以下面几个总是最该接的。`--status blocked,in-progress` 只看没闭环的，`--stale-days 7` 只揪一周没动静的僵尸任务，`--format json` 给脚本/仪表盘消费。它只读 STATE.json（读模型），不 parse 大段 markdown，所以很快；前提是每个会话都守住了"改文档同轮刷 STATE"的规矩（漏刷的会被 validate 抓）。
 
 `install-hooks` 解决"skill 里的 hook 是源、`~/.qoder/hooks` 是运行时副本"的同步问题：内容一致跳过，有变动先把运行时旧版备份到 `~/.qoder/hooks/.backup/<fn>.pre-install-<ts>` 再覆盖并 sha256 复核。仅在用户批准的源文件范围内改动；部署前另行取得全局 hooks 升级授权。改源不自动部署，也不直接编辑运行时副本。
 
