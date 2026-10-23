@@ -1,18 +1,19 @@
 # Skill 索引
 
-仅下列 **63 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
+仅下列 **64 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
 
-## 文档与课程（7 个）
+## 文档与课程（8 个）
 
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
 | [anthropic-docx](skills/anthropic-docx/SKILL.md) | Word 创建、编辑、模板填充 | 按路线需要 Python / Node；模板由用户提供，不承诺捆绑缺失模板 |
+| [docx-meta](skills/docx-meta/SKILL.md) | Word 交付前元数据清理与时间线校正 | Python；只处理 `.docx`；处理前关闭 Word/WPS；清理后再保存会写回元数据 |
 | [anthropic-pdf](skills/anthropic-pdf/SKILL.md) | PDF 提取、合并、拆分与表单 | Python / PDF 工具，按操作检查依赖 |
 | [anthropic-pptx](skills/anthropic-pptx/SKILL.md) | 演示文稿生成与编辑 | Node / Python / 渲染工具；必须检查渲染结果 |
 | [anthropic-xlsx](skills/anthropic-xlsx/SKILL.md) | `.xlsx`、CSV、TSV 通用处理 | Python；Office 重算另需依赖，不能修改真实用户宏配置 |
 | [xls-poi](skills/xls-poi/SKILL.md) | BIFF8 / POI 表格分析与模板处理 | Java + POI；删列执行链路暂停，不能以旧验证器输出证明完整保真 |
 | [anthropic-slack-gif-creator](skills/anthropic-slack-gif-creator/SKILL.md) | Slack 动画 GIF | 按需，Python 及目录内依赖 |
-| [course-assignment](skills/course-assignment/SKILL.md) | 取题、实测、撰写、文档验收 | 按路线需要浏览器、Node / Python；上传和提交须明确授权 |
+| [course-assignment](skills/course-assignment/SKILL.md) | 取题、实测、撰写、文档验收；生成 docx 后强制元数据收尾 | 按路线需要浏览器、Node / Python；上传和提交须明确授权 |
 
 ## 开发流程与设计（13 个）
 
@@ -84,7 +85,9 @@ Firecrawl 共 18 个独立入口：主技能 `firecrawl` 1 个、CLI 操作技�
 | [anthropic-doc-coauthoring](skills/anthropic-doc-coauthoring/SKILL.md) | 共创文档与读者测试 | 不等于文件格式转换 |
 | [anthropic-internal-comms](skills/anthropic-internal-comms/SKILL.md) | 组织沟通模板 | 按需，保留独有模板，不强制公司口吻 |
 | [content-research-writer](skills/content-research-writer/SKILL.md) | 研究、引用和写作迭代 | 按需，事实须有来源 |
-| [session-handoff](skills/session-handoff/SKILL.md) | 可接续的交接状态文件 | 创建交接体系、改 AGENTS/.gitignore 与全局 hooks 安装须分别授权 |
+| [session-handoff](skills/session-handoff/SKILL.md) | 可接续的交接状态文件（核心入口） | 创建交接体系、改 AGENTS/.gitignore 与全局 hooks 安装须分别授权 |
+
+`session-handoff` 是本仓库的核心入口：任何跨会话、分批推进或需要把踩坑留给后续会话的任务，默认推荐安装；跳过时应在推荐清单里写明理由。
 
 ## API 与记忆（5 个）
 

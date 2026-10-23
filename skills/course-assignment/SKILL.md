@@ -1,21 +1,22 @@
 ---
 name: course-assignment
-description: 大学课程作业通用处理流程（不限科目）。当用户要求完成某门课程的作业/大作业/实验报告/课程设计/调研报告，或需要在学习通(chaoxing/mooc)平台查看题目与提交，或需要产出 Word/PDF 交付文档时，覆盖取作业题、方案确认、真实环境踩点实测、内容源撰写、docx 生成、三重校验、会话交接的完整链路，并遵守"提交动作须用户明确允许"红线。
+description: 大学课程作业通用处理流程（不限科目）。当用户要求完成某门课程的作业/大作业/实验报告/课程设计/调研报告，或需要在学习通(chaoxing/mooc)平台查看题目与提交，或需要产出 Word/PDF 交付文档时，覆盖取作业题、方案确认、真实环境踩点实测、内容源撰写、docx 生成、docx 元数据清理、三重校验、会话交接的完整链路，并遵守"提交动作须用户明确允许"红线。
 ---
 
 # 课程作业通用流程（course-assignment）
 
 ## Overview
 
-把一门课程作业从「题目」做到「可提交的交付件」：取题 → 确认方案 → 踩点实测 → 内容源 md → 生成 docx → 三重校验 → （获许可后）提交。骨架不限科目：软件测试、其他实验、课程设计、调研报告都是这八步。
+把一门课程作业从「题目」做到「可提交的交付件」：取题 → 确认方案 → 踩点实测 → 内容源 md → 生成 docx → 元数据清理 → 三重校验 → （获许可后）提交。骨架不限科目：软件测试、其他实验、课程设计、调研报告都是这九步。
 
 ## 与其他 skill 的关系
 
 - **会话交接**：按 `session-handoff` 先检查用户是否授权持久化交接；仅在授权目录创建/追加，未授权就在回复中交接。AGENTS.md、.gitignore 与全局 hooks 的修改需分别获准。
 - **Word 细节**：docx 格式知识看 `anthropic-docx` skill；本 skill 自带生成器 `scripts/gen_docx.cjs`（先检查依赖）
+- **元数据收尾（强制）**：任何 docx 生成后、以及用户在 Word/WPS 中另存后，必须执行 `docx-meta` 清理作者/修订者/自定义属性/缩略图并校正时间线；缺该 skill 时停止交付并说明，不得跳过。
 - **联网操作**：学习通等有登录态的平台用 chrome-devtools MCP（web-access 的 CDP proxy 与新版 Chrome 不兼容，见 references/pitfalls.md）
 
-## 八步流程
+## 九步流程
 
 ### 0 建场
 - 使用用户指定的独立工作目录；获持久化文档授权后才创建交接文档 + `作业执行文档.md`（需求/方案/验收标准权威源）。未授权时在当前回复维护摘要，不自动落盘。
@@ -52,20 +53,44 @@ node "$SKILL_DIR/scripts/gen_docx.cjs" --check-deps && \
 - 改 md 后必须重跑生成器；禁止手改 docx（会被下次生成覆盖）
 - `--img-width` 默认 480px（约 5 英寸）：让同页能放下两张对照图
 
-### 6 三重校验（手册见 references/verify.md）
+### 6 元数据收尾（强制，不可跳过）
+任何 docx 生成后都必须执行本步；用户在 Word/WPS 中打开并保存过交付件后，元数据会被重写，必须重新生成（内容源 md 是唯一权威）并重跑本步。
+
+先定位 `docx-meta`（路径可用 `DOCX_META_DIR` 覆盖；缺该 skill 时停止交付并说明，不得跳过）：
+```bash
+DOCX_META_DIR="${DOCX_META_DIR:-$HOME/.qoder/skills/docx-meta}"
+[ -f "$DOCX_META_DIR/scripts/docx-meta.py" ] || DOCX_META_DIR="$HOME/.agents/skills/docx-meta"
+if [ ! -f "$DOCX_META_DIR/scripts/docx-meta.py" ] && [ -n "$SKILL_DIR" ]; then
+  DOCX_META_DIR="$(cd "$SKILL_DIR/.." && pwd)/docx-meta"
+fi
+test -f "$DOCX_META_DIR/scripts/docx-meta.py" || { echo "缺少 docx-meta，停止交付"; exit 1; }
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --backup "<输出.docx>"
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.docx>"
+```
+
+- 默认清空作者/最后修改者/标题/描述/自定义属性/缩略图/审阅者列表，批注与修订内容保留但作者置空；只有用户明确要署名时才加 `--author "<姓名>"`。
+- 时间线默认按正文规模估算总编辑时间，并满足 `创建 + TotalTime = 修改 = 访问`；`--edit-minutes` 只在用户给出编辑时长时使用。不要用系统当前时间直接冒充完整编辑历史。
+- `--backup` 生成的 `.bak` 含原始敏感元数据，复核通过后删除，不随交付提交。
+- 处理前关闭 Word/WPS；只支持 `.docx`，`.doc` 先另存为 `.docx`。清理后再用 Word 保存会重新写入元数据，交付前必须再跑一次。
+- 复核期望：`core.author`/`core.lastModifiedBy` 为空、`removable parts: <none>`、`review authors` 为空、新建/副本满足 `created + TotalTime = modified`；不满足就停，不带病交付。
+- 本步只改属性，不改正文；但会重写 ZIP，完成后仍要跑第 7 步的格式与结构校验。
+
+### 7 三重校验（手册见 references/verify.md）
+0. **元数据**：第 6 步 `--inspect` 复核通过；重新生成或另存后必须重跑
 1. **格式**：`PYTHONUTF8=1 python ~/.qoder/skills/anthropic-docx/scripts/office/validate.py <out.docx>`
 2. **结构**：zipfile 查段数/图数/图尺寸不超正文宽/media SHA1 与源图一致；grep 全篇数字与日期前后一致；截图里出现的账号等标识符必须能在环境表找到
 3. **独立双校**：Workflow/子 agent 并行「合规审计（对照题面逐条）+ 视觉校验（若可渲染）」；子 agent 红线写进 prompt：禁止碰提交平台、禁止改交接文档
 - 诚实口径：本机没有渲染工具链时（无 pandoc/LibreOffice，Word COM 导 PDF 不可靠，见 pitfalls），明说"未做真实渲染视觉复核"，不假装查过
 
-### 7 提交（红线步骤）
+### 8 提交（红线步骤）
 - **未经用户明确允许，不做任何提交动作**：平台上传、答题框粘贴、点提交，全部等用户说"可以提交"
 - **截止时刻一过：不再等待、不再反复追问**（用户 2026-09-09 定的通用口径），但**截止不等于提交证据**：没有用户明确确认或平台成功回执/可核对状态时，记 `submission_status: UNKNOWN`（注明缺少证据），不得推断已提交、勾选关闭提交待办或按已提交归档；交付完成与平台提交状态分开记录。红线本身未放宽：agent 主动上传/粘贴/点提交仍然禁止；用户事后要求补交、延期或返工，按新指示重开该作业
-- 提交前：用用户给的学号/姓名替换正文+文件名占位符 → 重生成 → 重跑校验第 1、2 层 → 获明确许可后再执行提交
+- 提交前：用用户给的学号/姓名替换正文+文件名占位符 → 重生成 → 重跑第 6 步元数据收尾 → 重跑校验第 1、2 层 → 获明确许可后再执行提交
 - 提交后：取得提交成功凭据（截图/页面状态或用户明确确认）后才标记已提交；记录证据来源，在获准维护的交接文档中留存
 
 ## 行为纪律
 
+- 交付的 docx 必须经过第 6 步元数据收尾；不得以"生成器本来就没写作者"为由跳过——生成器、模板、Word/WPS 保存都可能写入元数据
 - 踩坑记 `references/pitfalls.md`（新坑随做随记，标注日期）
 - 每会话结束仅在获准维护的交接文档中追加完成内容/验证证据/新坑/环境变更/遗留；未授权时只回复摘要
 
@@ -74,4 +99,5 @@ node "$SKILL_DIR/scripts/gen_docx.cjs" --check-deps && \
 - `scripts/gen_docx.cjs` — md→docx 生成器（A4、宋体正文/黑体标题、表格、内嵌图、有序/无序列表），含 `--check-deps` 依赖预检
 - `scripts/verify_media.py` — 核对内嵌图片实际字节；缺图/读取失败返回非零
 - `references/pitfalls.md` — 跨科目通用踩坑记录（学习通/浏览器自动化/Windows 中文/docx）
-- `references/verify.md` — 三重校验操作手册（含结构检查代码模板）
+- `references/verify.md` — 元数据复核 + 三重校验操作手册（含结构检查代码模板）
+- `docx-meta`（独立 skill）— `.docx` 元数据清理与时间线校正；第 6 步强制调用

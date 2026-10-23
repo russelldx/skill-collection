@@ -1,6 +1,30 @@
-# 交付件三重校验手册
+# 交付件元数据与三重校验手册
 
-目的：在没有 Word 渲染工具链的机器上，仍然对交付 docx 给出**可复核、不夸大**的质量证据。
+目的：在没有 Word 渲染工具链的机器上，仍然对交付 docx 给出**可复核、不夸大**的质量证据。元数据收尾是强制前置，三重校验关注格式、结构与独立复核。
+
+## 第 0 层 元数据与时间线（强制前置）
+
+生成或另存 docx 后先跑 `docx-meta`，再用 `--inspect` 复核；缺该 skill 时停止交付，不得跳过：
+
+```bash
+DOCX_META_DIR="${DOCX_META_DIR:-$HOME/.qoder/skills/docx-meta}"
+[ -f "$DOCX_META_DIR/scripts/docx-meta.py" ] || DOCX_META_DIR="$HOME/.agents/skills/docx-meta"
+if [ ! -f "$DOCX_META_DIR/scripts/docx-meta.py" ] && [ -n "$SKILL_DIR" ]; then
+  DOCX_META_DIR="$(cd "$SKILL_DIR/.." && pwd)/docx-meta"
+fi
+test -f "$DOCX_META_DIR/scripts/docx-meta.py" || { echo "缺少 docx-meta，停止交付"; exit 1; }
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --backup "<输出.docx>"
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.docx>"
+```
+
+必查清单：
+
+- [ ] `core.author` / `core.lastModifiedBy` 为空（除非用户明确要求署名并传了 `--author`）
+- [ ] `removable parts: <none>`，`review authors` 为空
+- [ ] 新建/副本满足 `core.created + app.TotalTime = core.modified`；老文档允许间隔大于 TotalTime
+- [ ] `core.created` 与文件系统 created 一致（`--copy-style` 副本形态除外）
+- [ ] `.bak` 已删除，未随交付物提交
+- [ ] 清理后重新跑了第 1、2 层校验（docx-meta 会重写 ZIP）
 
 ## 第 1 层 格式合法性
 
@@ -60,6 +84,7 @@ PYTHONUTF8=1 python "$SKILL_DIR/scripts/verify_media.py" "<输出.docx>" "<源�
 
 ## 提交前最后核对
 
-1. 用户给出学号/姓名 → 替换内容源全部占位符 + 重命名文件 → 重生成 → 重跑第 1、2 层
-2. 交付物数量与题面要求一致（一个文档就别附 zip）
-3. 截止不足 1 小时时及时告知用户准备情况及未通过项；平台上传、粘贴、提交仍须明确许可，不能因临近截止自行操作。没有提交证据始终标记 `submission_status: UNKNOWN`，截止已过也不推断已提交或关闭待办。
+1. 用户给出学号/姓名 → 替换内容源全部占位符 + 重命名文件 → 重生成 → 重跑第 0 层元数据收尾 → 重跑第 1、2 层
+2. 任何 Word/WPS 另存后：内容源 md 是唯一权威，重新生成；至少重跑第 0 层，再重跑第 1、2 层
+3. 交付物数量与题面要求一致（一个文档就别附 zip）
+4. 截止不足 1 小时时及时告知用户准备情况及未通过项；平台上传、粘贴、提交仍须明确许可，不能因临近截止自行操作。没有提交证据始终标记 `submission_status: UNKNOWN`，截止已过也不推断已提交或关闭待办。

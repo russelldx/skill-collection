@@ -1,6 +1,6 @@
 # 验证范围与复现方法
 
-本仓库不再使用“63 个 skill 全部可用”或“所有 agent 完全兼容”的结论。全文审查、结构检查、隔离脚本测试和真实平台验收是不同层次；一层通过不能代替另一层。本文中“通过”仅表示对应隔离测试通过，不代表技能在真实环境完成端到端验收。
+本仓库不再使用“64 个 skill 全部可用”或“所有 agent 完全兼容”的结论。全文审查、结构检查、隔离脚本测试和真实平台验收是不同层次；一层通过不能代替另一层。本文中“通过”仅表示对应隔离测试通过，不代表技能在真实环境完成端到端验收。
 
 ## 结构验证
 
@@ -11,7 +11,7 @@ bash validate-skills.sh
 
 两条命令调用同一验证器，失败返回非零退出码。检查范围：
 
-- `skills/` 下 63 个活动入口，必需 frontmatter 字段和名称唯一性。
+- `skills/` 下 64 个活动入口，必需 frontmatter 字段和名称唯一性。
 - 不允许参考目录中嵌套 `SKILL.md`；归档入口改为 `REFERENCE.md`。
 - `INDEX.md` 对活动技能的完整、无重复覆盖。
 - 活动 `SKILL.md` 及根目录说明中的实际本地 Markdown 链接（不验证网页、锚点或代码示例）。
@@ -28,7 +28,7 @@ bash validate-skills.sh
 
 - 暂存树违反仓库规范（入口数不符、空 description、失效链接、冲突阶段、非常规文件模式）→ 返回非零，阻止提交。
 - 本机安装技能与仓库有无基线/差异只是提示行，不永久阻断无关提交。
-- 当前索引为 63 活动入口，hook 实测 exit 0 并输出 `Active entries: 63; errors: 0`（本轮从 55 抬高：新装 8 个 Firecrawl 检索/集成入口）。历史提交 `d6ed444` 的索引曾是 63 入口旧树（hook 会以 19 项错误拦截）；修复提交 `96139fa` 后已恢复，两者的 63 只是数字相同，入口集合不同。索引含未暂存修改时 hook 只校验索引副本，不受工作区影响。
+- 当前索引为 64 活动入口，hook 实测 exit 0 并输出 `Active entries: 64; errors: 0`（本轮从 63 抬高：纳入本地维护的 `docx-meta`）。历史提交 `d6ed444` 的索引曾是 63 入口旧树（hook 会以 19 项错误拦截）；修复提交 `96139fa` 后已恢复，历史 63 与当前 64 不是同一入口集合。索引含未暂存修改时 hook 只校验索引副本，不受工作区影响。
 
 维护者可另用 `python sync-skills.py check` 只读对比本机安装技能与仓库；任何同步必须用显式 `apply` 命令逐文件复核方向与哈希，工具永远不自动同步、不删除入口。导出到本机需先审阅差异并用 `approve` 记录哈希绑定（方向与双侧哈希任一变化即失效）。
 
@@ -43,6 +43,7 @@ PYTHONUTF8=1 python -B -m unittest discover -s tests -p 'test_mcp_smoke.py' -v
 node --test skills/web-access/scripts/audit-safety.test.mjs
 PYTHONUTF8=1 python -B skills/course-assignment/scripts/test_verify_media.py
 PYTHONUTF8=1 python -B skills/course-assignment/scripts/test_gen_docx.py
+PYTHONUTF8=1 python -B skills/docx-meta/scripts/test_docx_meta.py
 PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 ```
 
@@ -55,6 +56,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | web-access 浏览器安全 | 12 项通过 | 注入假发现结果：严格选择、身份未确认拒绝复用、启动后身份复核、禁止备用探测、Proxy 复用与授权诊断；不启动浏览器或监听端口 |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
 | 课程 DOCX 生成 | 3 项通过，无跳过 | 缺依赖预检查，以及使用现有 docx 包真实生成包含表格和图片的 DOCX，再校验媒体 |
+| DOCX 元数据清理 | 2 项通过 | 标准库构造最小 docx：清理后作者/标题/描述/公司为空，`custom.xml`/缩略图/people 及对应关系与内容类型移除，批注保留但作者/缩写置空；`TotalTime=90` 时 `core.created + TotalTime = core.modified` 且文件系统创建/修改时间一致；另测估算路径（8–6000 分钟）与 `--author` 保留；`--inspect` 把空审阅作者显示为 `<none>` |
 | POI 删列停用 | 4 项通过 | 真实编译运行拒绝入口，确认输入/输出不变；其他命令只验证参数转发，不代表 POI 工作簿功能已验收 |
 
 测试在临时目录中生成样本并清理，不使用真实用户文件。运行前需要现有 Python/openpyxl、Node.js、Java 和 Bash；DOCX 生成测试在缺少现有 docx 包时会明确跳过，不能把跳过记作通过。

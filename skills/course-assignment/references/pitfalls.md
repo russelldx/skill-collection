@@ -26,6 +26,7 @@
 - **不要用 Word COM 自动导 PDF**（2026-09-05 两次踩坑）：① COM 实例退出失败残留不可见 WINWORD（`MainWindowHandle=0`）死锁输出目录的 docx/pdf，还留 `~$` 锁文件；② 强杀后下次 COM 启动弹不可见"恢复/安全模式"对话框，`ExportAsFixedFormat` 永不返回 → 需要 PDF 时让用户在 WPS/Word 里手动"另存为"
 - 重新生成 docx 报 `EBUSY` → 先 `Get-Process wps,WINWORD` 看 `MainWindowHandle`：**非 0 是用户自己开着文档**，请用户关闭，绝不强杀用户正在编辑的进程；为 0 的不可见实例才是自动化残留，可安全清理并删 `~$` 锁文件
 - **用户在 WPS/Word 里打开并另存过交付 docx 后，该文件即不再可信**（2026-09-05 实测）：体积和段落数会变（855950B/440 段 → 528841B/434 段，图片被重压缩），且 `word/styles.xml` 里 `w:uiPriority` 元素顺序被改坏，严格校验由 PASSED 变 FAILED。所以**内容源 md 是唯一权威**，最终版一律 `node gen_docx.cjs` 重新生成，绝不在用户另存过的 docx 上增量改
+- **Word/WPS 保存会重写元数据**（2026-10-23）：作者/最后修改者/TotalTime 会按真实编辑会话重新写入，刚清理过的交付件可能又出现本机用户名或总编辑时间归零 → 生成/另存后强制跑 `docx-meta`，用 `--inspect` 复核 `core.author` 为空、`created + TotalTime = modified`；清理后再用 Word 保存就再跑一次。`--backup` 生成的 `.bak` 含原始敏感元数据，复核通过后删除
 - PowerShell 5.1 把 UTF-8 **无 BOM** 的 .ps1 按 GBK 解码，硬编码中文路径变乱码 → 脚本只用 ASCII 内容，或用 pwsh 7
 - Git Bash 会展开双引号里 PowerShell 命令的 `$var`/`$_` → 把命令写进 .ps1 用 `-File` 执行，或改用无 `$` 的写法
 - 全局 npm 包（docx）不在本地 node_modules → 先运行本 skill 实际路径下 `scripts/gen_docx.cjs --check-deps`；生成器会检查本地/NODE_PATH 与已有 `npm root -g`。也可由用户指定实际的 NODE_PATH；不要复制个人机器路径，不自动安装

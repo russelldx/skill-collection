@@ -537,7 +537,7 @@ def materialize_index(repo, root):
     return entries
 
 
-def hook(engine, expected_active=63):
+def hook(engine, expected_active=64):
     try:
         for row in engine.check():
             if row["status"] not in {"equal", "equal-unbound"}:
