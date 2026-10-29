@@ -11,6 +11,7 @@ Skill 是流程说明，MCP 和 CLI 是执行接口。仓库中的 [.mcp.json](.
 | 本机 CDP / 书签 / 历史 | `web-access` 自带 Node.js CDP Proxy，不要求 Chrome DevTools MCP | `web-access` |
 | 持久记忆 / 结构化探索 | 官方 claude-mem 插件及其 MCP，不能使用虚构 npm 包代替 | 3 个活动 `claude-mem-*` 技能 |
 | 数据库操作（可选） | 后端开发需要时推荐 [DBX](https://github.com/t8y2/dbx) 及其 MCP 包 `@dbx-app/mcp-server`（README 含中文说明）；连接与权限由 DBX 应用管理，凭据不进配置文件 | 仓库暂无依赖技能，按需自取 |
+| 截图与屏幕取字 | 本仓库自带 [`mcps/snipaste-mcp`](./mcps/snipaste-mcp/README.md)，本地 Node.js stdio 服务，驱动 Snipaste 命令行 | 仓库暂无依赖技能，按需自取 |
 
 只配置当前任务需要的服务。修改客户端配置、安装插件或全局包、登录账户均须授权；不要把密钥直接写进版本控制文件。
 
@@ -74,7 +75,32 @@ Firecrawl `interact` 支持登录流程和 profile 持久化，但不会自动�
 
 通过 MCP 列出页面，在自己创建的测试标签页完成读取/截图，再关闭该标签页。不要操作或关闭用户原有页面。若出现 profile 占用，先确定归属，不能直接杀浏览器或删除锁文件。
 
-## web-access 不需要此 MCP
+## Snipaste MCP（本仓库自带）
+
+`mcps/snipaste-mcp` 是仓库内唯一自带实现的 MCP 服务，不是第三方包，也不在 `skills/` 同步基线内。它包装 Snipaste 的命令行参数，提供 `snip_capture`、`snip_ocr`、`snip_status` 三个工具，用于截图到指定路径和（PRO）读取屏幕文字。完整说明见 [mcps/snipaste-mcp/README.md](./mcps/snipaste-mcp/README.md)。
+
+依赖：Snipaste 2.x（便携版即可，不要求在 `PATH` 中）与 Node.js 18+。安装与配置：
+
+```bash
+cd mcps/snipaste-mcp
+npm ci            # 依 package-lock.json 安装；node_modules 已被 .gitignore 排除
+npm test          # 对真实 Snipaste 跑端到端检查，截图写入临时目录后清理
+```
+
+```json
+{
+  "mcpServers": {
+    "snipaste": {
+      "command": "node",
+      "args": ["<仓库路径>/mcps/snipaste-mcp/src/server.js"]
+    }
+  }
+}
+```
+
+定位顺序：`SNIPASTE_PATH` → 常见安装目录 → `PATH` → 上次缓存 → 正在运行的进程 → `Desktop`/`Downloads`/`Documents`/`Programs` 的浅层扫描。首次命中会写入用户配置目录，之后冷启动也无需再扫。Snipaste 未运行时会自动拉起，首次截图约 2.5 s，后续约 0.3 s。
+
+免费版边界由 Snipaste 官方对照表决定：活动窗口截图、阴影、`--block` 与 `-o ocr_clipboard`（文字提取）属于 PRO 功能，免费版不报错也不产出。其中 `-o ocr_clipboard` 还会让 Snipaste 之后不再响应截图请求，因此 `snip_ocr` 超时后会重启 Snipaste 再返回明确错误。注册 MCP 与安装依赖均须用户授权，配置文件里不要写死他人磁盘路径。
 
 `web-access` 自带本地 CDP Proxy，保留本机登录态路线、书签/历史检索和站点经验。需要 Node.js 22+；查询 History 数据库另需 sqlite3 CLI。浏览器调试授权、站点风控和操作权限仍须独立确认。
 

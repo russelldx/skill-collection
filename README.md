@@ -61,6 +61,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 | 需求 | `gen-prd`（访谈）→ `decompose-prd`（拆解）；`prd-reviewer` 的专用量表需先确认适用 |
 | 跨会话交接、多会话协作 | `session-handoff`（核心入口，默认推荐）；专家团与 Qoder CLI 并行 agent 模式见其 references |
 | 记忆检索 | `claude-mem-mem-search`、`claude-mem-smart-explore`、`claude-mem-knowledge-agent`；与 `session-handoff` 分工不同：一个检索记忆，一个维护交接状态 |
+| 截图、按指定路径保存、屏幕取字 | 仓库自带 MCP [`mcps/snipaste-mcp`](./mcps/snipaste-mcp/README.md)（非 skill）；文字提取需 Snipaste PRO |
 
 ## 前置依赖
 
@@ -75,9 +76,10 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 | Chrome DevTools MCP | 可选浏览器工具；默认独立 profile 不自动继承日常登录态，连接已有浏览器须配置并授权 |
 | claude-mem 3 个活动技能 | 官方安装及所需 MCP 工具；不同版本的 AST/知识库工具可用性需要逐项检查 |
 | yida-login | OpenYida CLI；Cookie 是敏感信息，不能提交到仓库 |
+| snipaste-mcp（仓库自带 MCP） | Node.js 18+ 与 Snipaste 2.x，便携版可用；活动窗口截图、阴影、文字提取属 PRO 功能，免费版静默不产出 |
 | hooks / 子代理 | 宿主支持和权限需分别确认；安装技能不会自动授权注册 hooks |
 
-根目录 [.mcp.json](./.mcp.json) 提供 Firecrawl 和 Chrome DevTools 的项目配置示例。文件被客户端识别不等于服务安装、授权、启动或实际操作成功；其他客户端的配置格式和环境变量展开方式需按其文档适配。
+根目录 [.mcp.json](./.mcp.json) 提供 Firecrawl 和 Chrome DevTools 的项目配置示例。文件被客户端识别不等于服务安装、授权、启动或实际操作成功；其他客户端的配置格式和环境变量展开方式需按其文档适配。仓库自带的 [mcps/snipaste-mcp](./mcps/snipaste-mcp/README.md) 是唯一需要本地 `npm ci` 的 MCP，不包含在 `.mcp.json` 示例中，也不属于 64 个活动 skill 入口。
 
 详细配置与分层验证见 [MCP-SETUP.md](./MCP-SETUP.md)。本仓库不含可直接套用的个人 claude-mem 路径或任何 API Key。
 
