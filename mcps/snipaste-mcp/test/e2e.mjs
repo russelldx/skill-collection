@@ -95,15 +95,20 @@ try {
 
   const secondSave = await client.callTool({
     name: 'snip_capture',
-    arguments: { target: 'area', x: 0, y: 0, width: 120, height: 80, save_path: fixedPath, include_image: false },
+    arguments: { target: 'area', x: 0, y: 0, width: 200, height: 140, save_path: fixedPath, include_image: false },
   });
-  check('refuses to overwrite unless overwrite=true', secondSave.isError === true, textOf(secondSave).slice(0, 80));
+  const replacedFile = await stat(fixedPath).catch(() => null);
+  check(
+    'same save_path is overwritten by default',
+    secondSave.isError !== true && Boolean(replacedFile) && replacedFile.size !== savedFile?.size,
+    `${savedFile?.size ?? 0} -> ${replacedFile?.size ?? 0} bytes`,
+  );
 
-  const overwriteSave = await client.callTool({
+  const guarded = await client.callTool({
     name: 'snip_capture',
-    arguments: { target: 'area', x: 0, y: 0, width: 120, height: 80, save_path: fixedPath, overwrite: true, include_image: false },
+    arguments: { target: 'area', x: 0, y: 0, width: 120, height: 80, save_path: fixedPath, overwrite: false, include_image: false },
   });
-  check('overwrite=true replaces the file', overwriteSave.isError !== true);
+  check('overwrite=false protects the existing file', guarded.isError === true, textOf(guarded).slice(0, 80));
 
   const invalid = await client.callTool({
     name: 'snip_capture',

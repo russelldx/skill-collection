@@ -14,7 +14,7 @@ MCP server that drives [Snipaste](https://www.snipaste.com/)'s command line to t
 `x`/`y`/`width`/`height` (for `area`), `delay`, `shadow`, `save_path`, `overwrite`, `include_image`, `timeout_ms`.
 
 Saving under a chosen name is just `save_path`: the server creates missing directories, accepts non-ASCII names,
-refuses to replace an existing file unless `overwrite: true`, and reports the final path back.
+replaces a same-name file by default (`overwrite: false` makes the call fail instead), and reports the final path back.
 
 ## Requirements
 

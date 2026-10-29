@@ -30,7 +30,7 @@ const inputSchema = z.object({
   delay: z.number().min(0).max(30).default(0).describe('Seconds to wait before capturing, for transient UI.'),
   shadow: z.boolean().default(false).describe('Add a drop shadow. PRO only; ignored on the free build.'),
   save_path: z.string().optional().describe('Absolute path to write the PNG to. Defaults to a unique file in the OS temp directory.'),
-  overwrite: z.boolean().default(false).describe('Allow replacing an existing file at save_path.'),
+  overwrite: z.boolean().default(true).describe('Replace an existing file at save_path. Defaults to true; pass false to make the call fail instead of overwriting.'),
   include_image: z.boolean().default(true).describe('Return the screenshot itself in the response. Set false to get only the file path and dimensions.'),
   timeout_ms: z.number().int().min(500).max(30000).default(8000).describe('How long to wait for Snipaste to finish writing the file.'),
 });

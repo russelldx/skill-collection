@@ -264,7 +264,7 @@ export async function capture({
   delay = 0,
   shadow = false,
   savePath,
-  overwrite = false,
+  overwrite = true,
   timeoutMs = 8000,
 }) {
   const exe = await resolveExecutable();
@@ -274,7 +274,7 @@ export async function capture({
   if (savePath) {
     await mkdir(dirname(savePath), { recursive: true }).catch(() => {});
     if (existsSync(savePath) && !overwrite) {
-      throw new Error(`${savePath} already exists; pass overwrite: true to replace it`);
+      throw new Error(`${savePath} already exists and overwrite is false; it was left untouched`);
     }
   } else {
     await mkdir(dirname(out), { recursive: true });
