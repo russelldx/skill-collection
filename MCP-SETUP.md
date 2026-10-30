@@ -11,7 +11,7 @@ Skill 是流程说明，MCP 和 CLI 是执行接口。仓库中的 [.mcp.json](.
 | 本机 CDP / 书签 / 历史 | `web-access` 自带 Node.js CDP Proxy，不要求 Chrome DevTools MCP | `web-access` |
 | 持久记忆 / 结构化探索 | 官方 claude-mem 插件及其 MCP，不能使用虚构 npm 包代替 | 3 个活动 `claude-mem-*` 技能 |
 | 数据库操作（可选） | 后端开发需要时推荐 [DBX](https://github.com/t8y2/dbx) 及其 MCP 包 `@dbx-app/mcp-server`（README 含中文说明）；连接与权限由 DBX 应用管理，凭据不进配置文件 | 仓库暂无依赖技能，按需自取 |
-| 截图与屏幕取字 | 本仓库自带 [`mcps/snipaste-mcp`](./mcps/snipaste-mcp/README.md)，本地 Node.js stdio 服务，驱动 Snipaste 命令行 | 仓库暂无依赖技能，按需自取 |
+| 安全截图与屏幕取字 | 本仓库自带 [`mcps/snipaste-mcp`](./mcps/snipaste-mcp/README.md)，本地 Node.js stdio 服务，驱动 Snipaste 命令行；默认只截目标窗口，桌面截图须显式授权 | 仓库暂无依赖技能，按需自取 |
 
 只配置当前任务需要的服务。修改客户端配置、安装插件或全局包、登录账户均须授权；不要把密钥直接写进版本控制文件。
 
@@ -77,9 +77,11 @@ Firecrawl `interact` 支持登录流程和 profile 持久化，但不会自动�
 
 ## Snipaste MCP（本仓库自带）
 
-`mcps/snipaste-mcp` 是仓库内唯一自带实现的 MCP 服务，不是第三方包，也不在 `skills/` 同步基线内。它包装 Snipaste 的命令行参数，提供 `snip_capture`、`snip_ocr`、`snip_status` 三个工具，用于截图到指定路径和（PRO）读取屏幕文字。完整说明见 [mcps/snipaste-mcp/README.md](./mcps/snipaste-mcp/README.md)。
+`mcps/snipaste-mcp` 是仓库内唯一自带实现的 MCP 服务，不是第三方包，也不在 `skills/` 同步基线内。它包装 Snipaste 的命令行参数，提供 `snip_capture`、`snip_view`、`snip_windows`、`snip_ocr`、`snip_status` 五个工具，用于安全截图、（PRO）读取屏幕文字与窗口自检。完整说明见 [mcps/snipaste-mcp/README.md](./mcps/snipaste-mcp/README.md)。
 
-依赖：Snipaste 2.x（便携版即可，不要求在 `PATH` 中）与 Node.js 18+。安装与配置：
+**默认安全策略（务必保留）**：截图严禁包含用户桌面与其它隐私窗口。`snip_capture` 默认 `target: "window"`，只截一个经覆盖校验的目标窗口矩形，截完自动还原窗口；`fullscreen`/`active_screen`/`last` 一律拒绝，除非调用方显式传 `allow_desktop: true`，而该开关仅限用户明确要求桌面截图时使用。没有合适应用窗口时用 `snip_view` 开临时浏览器窗口渲染后再截。窗口级校验失败宁可不返回图片，也不会降级成整屏截图。窗口控制与 `snip_view` 仅支持 Windows，其它平台会明确报不支持。
+
+依赖：Snipaste 2.x（便携版即可，不要求在 `PATH` 中）与 Node.js 18+；`snip_view` 需要本机装有 Edge 或 Chrome。安装与配置：
 
 ```bash
 cd mcps/snipaste-mcp

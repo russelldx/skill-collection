@@ -1,6 +1,6 @@
 {
   "name": "snipaste-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "MCP server that drives Snipaste's command line for screenshots and OCR",

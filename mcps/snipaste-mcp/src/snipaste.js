@@ -178,7 +178,9 @@ async function ensureRunning(exe) {
     if (!(await isRunning())) {
       throw new Error('Snipaste is not running and could not be started. Start it manually, then retry.');
     }
-    await sleep(400);
+    // The process shows up in tasklist before its snip handler is ready; a
+    // command sent during that gap is dropped without any error.
+    await sleep(1200);
   }
   ensuredAt = Date.now();
 }
@@ -194,6 +196,11 @@ function targetArgs({ target, area }) {
     case 'last':
       return ['--last'];
     case 'area':
+      // Snipaste silently ignores an area it cannot parse, so a typo here would look
+      // like an 8s timeout instead of a bug. Reject it loudly instead.
+      for (const key of ['x', 'y', 'width', 'height']) {
+        if (!Number.isFinite(area?.[key])) throw new Error(`area.${key} must be a finite number, got ${area?.[key]}`);
+      }
       return ['--area', String(area.x), String(area.y), String(area.width), String(area.height)];
     default:
       throw new Error(`Unknown target: ${target}`);
@@ -309,6 +316,20 @@ export async function capture({
   const buffer = await readFile(out);
   const { width, height } = pngSize(buffer);
   return { path: out, width, height, bytes: buffer.length, elapsedMs: Date.now() - startedAt, buffer };
+}
+
+// Window rects in this project are {left, top, width, height}; Snipaste's --area wants
+// {x, y, width, height}. Funnel every verified-rect capture through here so the two
+// shapes can never drift apart again.
+export function captureWithPreparedArea(rect, { delay = 0, savePath, overwrite = true, timeoutMs = 8000 } = {}) {
+  return capture({
+    target: 'area',
+    area: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+    delay,
+    savePath,
+    overwrite,
+    timeoutMs,
+  });
 }
 
 const PS_PREAMBLE = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8\n";
