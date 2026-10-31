@@ -2,7 +2,9 @@
 # session-handoff hook 1/3：Edit/Write 命中交接文档时打标记
 # stdin: hook JSON；标记文件：~/.qoder/tmp/handoff_updated_<session_id>
 INPUT=$(cat)
-printf '%s' "$INPUT" | grep -qE '交接|实施计划|TEAM\.md' || exit 0
+# 廉价前置过滤：命中任一命名线索才继续解析。含 skill 默认产出的 HANDOFF.md，
+# 以及 ~/.qoder/handoffs 的路径形态（旧版只认中文名，导致 HANDOFF.md 永远打不上标记）。
+printf '%s' "$INPUT" | grep -qE '交接|实施计划|TEAM\.md|HANDOFF\.md|handoff\.md|\.handoff/|handoffs' || exit 0
 
 PARSED=$(printf '%s' "$INPUT" | node -e 'process.stdin.setEncoding("utf8");let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log((j.session_id||"")+"|"+((j.tool_input&&j.tool_input.file_path)||""))}catch(e){}})')
 SID=${PARSED%%|*}
@@ -17,10 +19,10 @@ FILE=${FILE//$'\x5c'/'/'}
 
 BASE=$(basename "$FILE")
 case "$BASE" in
-  *交接*|*实施计划*|TEAM.md)
-    # archive/ 下是只读历史，允许无限增长，不参与尺寸统计
+  *交接*|*实施计划*|TEAM.md|HANDOFF.md|handoff.md)
+    # archive/ 与 .backup/ 下是只读历史，允许无限增长，不参与尺寸统计
     case "$FILE" in
-      */archive/*) exit 0 ;;
+      */archive/*|*/.backup/*) exit 0 ;;
     esac
     mkdir -p "$HOME/.qoder/tmp" 2>/dev/null
     MARK="$HOME/.qoder/tmp/handoff_updated_$SID"

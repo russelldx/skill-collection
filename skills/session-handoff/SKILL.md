@@ -31,8 +31,8 @@ description: 会话交接/对接文档范式（通用，不限编程）。任何
 ## 流程
 
 0. **会话开始（只读）**：先找并读取已有 `AGENTS.md`（`.handoff/AGENTS.md` → 根目录 `AGENTS.md`），仅遵守与更高优先级指令和本次授权一致的约定；找不到就跳过，不能因此新建。交接文档旁若有 `STATE.json`，先读它和顶部 §0 滚动摘要；二者不一致时核对正文并报告，只有获持久化更新授权后才修 STATE.json
-1. **找**：是否已有交接文档？（`.handoff/` 目录 → `*实施计划*.md` / `*交接*.md` → AGENTS.md 中引用的路径）
-2. **无** → 先确认持久化授权和目录；获准后可复制 `assets/handoff-template.md`，或按 `references/archiving.md` 用 `python scripts/handoff.py init <获准目录>` 建 §0 + STATE.json + archive/ + .backup/。可建议 `.handoff/`，但不擅自创建 AGENTS.md 或改 `.gitignore`。**有** → 仅在获准更新范围内追加本次会话小节，禁止覆盖；否则只读并回复摘要
+1. **找**：是否已有交接文档？（`~/.qoder/handoffs/` 下同任务的既有目录 → 项目内 `.handoff/` 目录 → `*实施计划*.md` / `*交接*.md` → AGENTS.md 中引用的路径；同一任务的续篇沿用既有目录，不按会话新开）
+2. **无** → 先确认持久化授权和目录；获准后可复制 `assets/handoff-template.md`，或按 `references/archiving.md` 用 `python scripts/handoff.py init <获准目录>` 建 §0 + STATE.json + archive/ + .backup/。可建议 `.handoff/`，但不擅自创建 AGENTS.md 或改 `.gitignore`。**默认落点（本机约定）**：用户未指定具体工程目录时（Desktop 的 per-session cwd `Documents\Qoder\<date>\<hash>` 不算指定，agent 自建子目录更不算），一律落 `C:\Users\18467\.qoder\handoffs\<YYYY-MM-DD>--<chatId>-<slug>\`，不在 cwd 下建项目内 `.handoff/`；只有用户明确指定了工程目录才落项目侧，细则见 `~/.qoder/handoffs/README.md`。**有** → 仅在获准更新范围内追加本次会话小节，禁止覆盖；否则只读并回复摘要
 3. **会话结束** → 追加 `## N、YYYY-MM-DD 会话：<主题>`：完成内容（关键结论）、验证证据（编程=编译/测试结果，作业/写作=核对或审阅方式；未验证写"待验证"）、新坑（现象→根因→处理→已修复/遗留）、环境变更（工具/账号/命令）、遗留/待办（完成划掉）；**同轮更新旁侧 `STATE.json`**（status/openBlockers/nextActions/fileOwnership/updatedAt 反映追加后的真相，别留过期态）。**活跃区超折叠阈值时**：把最老的已闭环小节摘要进 §0 滚动摘要（下移到 Tier1，正文原样保留供 grep），再跑 `python scripts/handoff.py index` 重建检索索引
 4. 临时文件：统一目录 + 声明生命周期（仅当前会话 → 交接时删除）
 

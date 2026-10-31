@@ -6,7 +6,8 @@ skill 的 hook 属于"语义上的一部分、运行时在别处"。以前只存
 
 ## 目录内容
 
-- `handoff-stamp.sh` — PostToolUse hook。Edit/Write 命中 `*交接*` / `*实施计划*` / `TEAM.md` 时，把文档绝对路径写入 `~/.qoder/tmp/handoff_updated_<session_id>` 作为"本会话改过"标记。已触发过一次 Stop 检查后不再重新武装（防循环）。
+- `handoff-stamp.sh` — PostToolUse hook。Edit/Write 命中 `*交接*` / `*实施计划*` / `TEAM.md` / `HANDOFF.md`（含 `~/.qoder/handoffs/`、`.handoff/` 下的路径）时，把文档绝对路径写入 `~/.qoder/tmp/handoff_updated_<session_id>` 作为"本会话改过"标记；`archive/`、`.backup/` 下的写入不计数。已触发过一次 Stop 检查后不再重新武装（防循环）。
+  - 2026-10-31 修正：旧版只认中文文件名，而 skill 默认产出的是 `HANDOFF.md`，两套命名对不上 → 标记永远打不上，Stop 检查静默放行。现补上 `HANDOFF.md` / `handoff.md` 与 handoffs 路径线索。
 - `handoff-stop-check.sh` — Stop hook。会话结束一次性拦截：
   - **①** 小节：改过文档但没写本节 → 补上
   - **②** 折叠/归档（活跃区字节超阈才触发）：先跑 `handoff.py index` 看 INDEX.md 的 ⚠ 待折叠清单，据此折 §0；仍超阈才物理搬 archive/
