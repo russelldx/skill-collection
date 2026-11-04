@@ -50,11 +50,11 @@ node "$SKILL_DIR/scripts/gen_docx.cjs" --check-deps && \
 ```
 - 预检与生成使用同一依赖解析：本地模块/显式 `NODE_PATH`，其次本机 `npm root -g` 中已有的 `docx`。缺 Node 或 `docx` 时停止并说明；可由用户提供已有依赖目录，未经许可不安装。
 - 交付物数量跟用户确认口径：要求"一个文档"就把截图内嵌进正文，**不做压缩包**
-- 改 md 后必须重跑生成器；禁止手改 docx（会被下次生成覆盖）
+- 改 md 后重跑生成器；若用户已在 Word/WPS 修改 docx，先保全并将修改回流内容源，再决定是否重新生成，不能直接覆盖用户修订。仅清元数据无需重生成。
 - `--img-width` 默认 480px（约 5 英寸）：让同页能放下两张对照图
 
 ### 6 元数据收尾（强制，不可跳过）
-任何 docx 生成后都必须执行本步；用户在 Word/WPS 中打开并保存过交付件后，元数据会被重写，必须重新生成（内容源 md 是唯一权威）并重跑本步。
+首次生成后立即执行本步建立包外时长基线；人工修改并保存、关闭 Word/WPS 后再次执行，默认自动累计。再次修改是常态，不能只因元数据变化而重新生成、覆盖用户修订；若确需重生成，先把修订回流内容源。
 
 先定位 `docx-meta`（路径可用 `DOCX_META_DIR` 覆盖；缺该 skill 时停止交付并说明，不得跳过）：
 ```bash
@@ -69,10 +69,12 @@ PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.doc
 ```
 
 - 默认清空作者/最后修改者/标题/描述/自定义属性/缩略图/审阅者列表，批注与修订内容保留但作者置空；只有用户明确要署名时才加 `--author "<姓名>"`。
-- 时间线默认按正文规模估算总编辑时间，并满足 `创建 + TotalTime = 修改 = 访问`；`--edit-minutes` 只在用户给出编辑时长时使用。不要用系统当前时间直接冒充完整编辑历史。
-- `--backup` 生成的 `.bak` 含原始敏感元数据，复核通过后删除，不随交付提交。
-- 处理前关闭 Word/WPS；只支持 `.docx`，`.doc` 先另存为 `.docx`。清理后再用 Word 保存会重新写入元数据，交付前必须再跑一次。
-- 复核期望：`core.author`/`core.lastModifiedBy` 为空、`removable parts: <none>`、`review authors` 为空、新建/副本满足 `created + TotalTime = modified`；不满足就停，不带病交付。
+- 总时长首次采用包内已有正数或全文估算，后续按基线累计；已知本轮时长用 `--add-minutes N` 追加一次，`--edit-minutes N` 则是覆盖绝对总量。估算不是实测，不拿两次保存的时间差冒充编辑时长；纯排版/校对耗时未知时明确说明未计入。
+- 默认 `--mode auto`；需要防止基线丢失时用 `--mode update`。同一文档修订不重置；同路径换无关文档才用 `--mode initial`。重命名/移动需用 `--state-file` 指向原基线继续累计。
+- 直接调用 docx-meta，不另写固定 `--edit-minutes 0` 或清理后删除 TotalTime/Application 等字段的 wrapper；真实渲染页数用 `--pages N`。既有项目明确留空的策略变更需单独确认。
+- `.bak` 含原始敏感元数据，基线 JSON 属本地工作记录，两者均不随交付提交；删除备份遵守用户授权。
+- 处理前关闭 Word/WPS；只支持 `.docx`，`.doc` 先另存为 `.docx`。清理后再次保存就再次收尾。
+- 复核期望：`core.author`/`core.lastModifiedBy` 为空、`removable parts: <none>`、`review authors` 为空、包内总时长与基线一致、`modified-created ≥ TotalTime`；再次编辑无需把旧创建时间改成恰好相等。
 - 本步只改属性，不改正文；但会重写 ZIP，完成后仍要跑第 7 步的格式与结构校验。
 
 ### 7 三重校验（手册见 references/verify.md）

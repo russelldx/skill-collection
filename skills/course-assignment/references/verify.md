@@ -21,9 +21,10 @@ PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.doc
 
 - [ ] `core.author` / `core.lastModifiedBy` 为空（除非用户明确要求署名并传了 `--author`）
 - [ ] `removable parts: <none>`，`review authors` 为空
-- [ ] 新建/副本满足 `core.created + app.TotalTime = core.modified`；老文档允许间隔大于 TotalTime
-- [ ] `core.created` 与文件系统 created 一致（`--copy-style` 副本形态除外）
-- [ ] `.bak` 已删除，未随交付物提交
+- [ ] `core.modified - core.created ≥ app.TotalTime`，新建文档通常相等；再次编辑保留较早的创建时间，不要求相等
+- [ ] `--inspect` 的基线总量与 `app.TotalTime` 一致，来源标为估算时不声称实测；普通重跑不重复计时
+- [ ] `core.created` 与文件系统 created 一致（`--copy-style` 或不支持 birthtime 的系统除外）
+- [ ] `.bak` 与基线 JSON 未随交付提交；删除备份需遵守用户授权
 - [ ] 清理后重新跑了第 1、2 层校验（docx-meta 会重写 ZIP）
 
 ## 第 1 层 格式合法性
@@ -85,6 +86,6 @@ PYTHONUTF8=1 python "$SKILL_DIR/scripts/verify_media.py" "<输出.docx>" "<源�
 ## 提交前最后核对
 
 1. 用户给出学号/姓名 → 替换内容源全部占位符 + 重命名文件 → 重生成 → 重跑第 0 层元数据收尾 → 重跑第 1、2 层
-2. 任何 Word/WPS 另存后：内容源 md 是唯一权威，重新生成；至少重跑第 0 层，再重跑第 1、2 层
+2. Word/WPS 修改保存后：保全人工修改并关闭编辑器，直接重跑第 0 层累计收尾及第 1、2 层；需重新生成时先回流内容源，不得覆盖修订。改名/移动用 `--state-file` 续接旧基线；已知新增分钟用 `--add-minutes` 追加一次
 3. 交付物数量与题面要求一致（一个文档就别附 zip）
 4. 截止不足 1 小时时及时告知用户准备情况及未通过项；平台上传、粘贴、提交仍须明确许可，不能因临近截止自行操作。没有提交证据始终标记 `submission_status: UNKNOWN`，截止已过也不推断已提交或关闭待办。

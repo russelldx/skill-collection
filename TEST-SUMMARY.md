@@ -53,13 +53,34 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出的哈希与方向绑定、`core.autocrlf` 检出字节的容忍；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行。包装器用例原先把活动入口数写死为 55，改默认值即红；现从 `hook.__defaults__[0]` 派生 fixture 数量与断言，pre-commit 不跑本套件，所以入口数变更后须手工跑一次 |
 | LibreOffice 重算 | 无自动化覆盖 | 原 mock 回归 `test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误（`recalc.signal` 已不存在），已删除；`recalc.py` 本体仍在，重算只在"真实环境中仍需验证"一节记录 |
 | MCP smoke 检查器 | 25 项通过 | 注入内存流与假会话：初始化、分页、超时、清理、isError、结构校验、启动器拒绝、证据标签；不外连 |
-| web-access 浏览器安全 | 12 项通过 | 注入假发现结果：严格选择、身份未确认拒绝复用、启动后身份复核、禁止备用探测、Proxy 复用与授权诊断；不启动浏览器或监听端口 |
+| web-access 浏览器安全 | 本次 2 项通过、10 项失败（旧记录为 12 项通过） | docx-meta 修改前执行即失败，未修改本模块；失败涉及浏览器选择、身份复核和授权提示，具体用例见下节。不启动浏览器或监听端口 |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
 | 课程 DOCX 生成 | 3 项通过，无跳过 | 缺依赖预检查，以及使用现有 docx 包真实生成包含表格和图片的 DOCX，再校验媒体 |
-| DOCX 元数据清理 | 2 项通过 | 标准库构造最小 docx：清理后作者/标题/描述/公司为空，`custom.xml`/缩略图/people 及对应关系与内容类型移除，批注保留但作者/缩写置空；`TotalTime=90` 时 `core.created + TotalTime = core.modified` 且文件系统创建/修改时间一致；另测估算路径（8–6000 分钟）与 `--author` 保留；`--inspect` 把空审阅作者显示为 `<none>` |
+| DOCX 元数据清理 | 仓库侧与安装侧各 26 项通过 | 保留原清理/注册/时间线/作者覆盖测试；新增初次基线、WPS 清零/缺失恢复、绝对覆盖与手动追加、原生累计值去重、增删改文本、重复文字小改动、重复运行与空闲时间不计入、纯排版不编造耗时、改名续接、页数覆盖、只读预演、损坏/锁定基线拒绝；注入文件替换失败验证基线不前移、基线保存失败不丢修改时间锚点。样本与状态均在临时目录 |
 | POI 删列停用 | 4 项通过 | 真实编译运行拒绝入口，确认输入/输出不变；其他命令只验证参数转发，不代表 POI 工作簿功能已验收 |
 
 测试在临时目录中生成样本并清理，不使用真实用户文件。运行前需要现有 Python/openpyxl、Node.js、Java 和 Bash；DOCX 生成测试在缺少现有 docx 包时会明确跳过，不能把跳过记作通过。
+
+### docx-meta 累计模式的 Windows 属性验收（2026-11-01）
+
+对独立临时 DOCX，先设置 90 分钟并建立基线，模拟编辑器把包内 TotalTime 清零，再显式追加 15 分钟；Windows Shell `System.Document.TotalEditingTime` 读取为 105 分钟，详细属性显示 `01:45:00`。随后模拟等长替换一个英文词并再次清零，自动估算增量 1 分钟得到 106，普通重跑仍为 106；Shell 显示 `01:46:00`。原正文/媒体保留由回归验证，基线位于 DOCX 包外。
+
+这证明包内数值能经当前 Windows 属性处理程序显示，不是 Word/WPS GUI 的真实编辑保存测试，也不证明估算分钟数就是实际耗时。未修改任何用户交付文档或实验三的项目 wrapper。
+
+### docx-meta 累计模式维护时发现的独立失败（2026-11-01）
+
+`node --test skills/web-access/scripts/audit-safety.test.mjs` 的以下 10 项在本次实现之前即失败，web-access 没有修改；不将其计为通过，也不在元数据任务中顺手修复：
+
+- `checker keeps explicit mismatch strict even if a separate port could be available`
+- `checker asks before persistence and leaves temporary selection available`
+- `wrong-browser proxy reuse refuses without spawning or killing a process`
+- `proxy explicit mismatch does not fall back or claim a proven toggle failure`
+- `proxy rejects a changed pinned browser with precise, permission-bound guidance`
+- `proxy retains its pin when browser disappears`
+- `safe diagnostics replace batch-kill and global-install advice in both entry points`
+- `explicit selection refuses reuse when browser identity is unknown`
+- `checker verifies browser identity again after proxy startup`
+- `ambiguous browser selection never probes the fallback port`
 
 上游重构后已删除的回归与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目：`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误，因此连同其命令行一起撤下（见上表）。同时删除 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`（能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令）、以及 `anthropic-pptx/editing.md`、`pptxgenjs.md`（内容合并进精简后的 `SKILL.md`，且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`）。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再折回 `SKILL.md`，不靠保留过期副本。
 

@@ -2,11 +2,16 @@
 """Remove docx metadata/PII, build a closed-loop timeline, estimate total editing time."""
 
 import argparse
+from collections import Counter
+from contextlib import contextmanager
 import datetime as dt
+import difflib
 import hashlib
 import html
+import json
 import math
 import os
+from pathlib import Path
 import re
 import shutil
 import sys
@@ -138,6 +143,151 @@ def estimate_minutes(stats, chars_per_min, words_per_min):
     digest = hashlib.sha256(stats["text"].encode("utf-8")).digest()
     jitter = 0.92 + (int.from_bytes(digest[:2], "big") % 21) / 100
     return max(8, min(6000, round((base + overhead) * jitter)))
+
+
+TOKEN_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[A-Za-z0-9]+(?:['\u2019-][A-Za-z0-9]+)*|[^\s]")
+W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def content_snapshot(entries, stats):
+    tokens, media = [], []
+    digest = hashlib.sha256()
+    for name, original in sorted(entries.items()):
+        if not name.startswith("word/") or name == "word/people.xml" or name.endswith("/"):
+            continue
+        data = original
+        if name.endswith(".xml"):
+            data = AUTHOR_RE.sub(lambda m: m.group(1) + b'=""', data)
+            chunks = []
+            for el in ET.fromstring(data).iter():
+                if el.tag in (f"{{{W}}}p", f"{{{W}}}tab", f"{{{W}}}br"):
+                    chunks.append("\n")
+                elif el.tag == f"{{{W}}}t":
+                    chunks.append(el.text or "")
+            for token in TOKEN_RE.findall("".join(chunks)):
+                kind = "word" if re.match(r"[A-Za-z0-9]", token) else "char"
+                tokens.append([hashlib.sha256(token.encode("utf-8")).hexdigest(), kind])
+        elif name == "word/_rels/document.xml.rels":
+            data = strip_rel(data, "/people")
+        if name.startswith("word/media/"):
+            media.append(hashlib.sha256(data).hexdigest())
+        digest.update(name.encode("utf-8") + b"\0" + hashlib.sha256(data).digest())
+    return {
+        "tokens": tokens, "media": media, "content_hash": digest.hexdigest(),
+        "paragraphs": stats["paragraphs"], "tables": stats["tables"], "headings": stats["headings"],
+    }
+
+
+def estimate_delta(previous, current, chars_per_min, words_per_min):
+    old, new = previous["tokens"], current["tokens"]
+    start, old_end, new_end = 0, len(old), len(new)
+    while start < min(old_end, new_end) and old[start] == new[start]:
+        start += 1
+    while old_end > start and new_end > start and old[old_end - 1] == new[new_end - 1]:
+        old_end -= 1
+        new_end -= 1
+    old, new = old[start:old_end], new[start:new_end]
+    rates = {"char": chars_per_min, "word": words_per_min}
+    matcher = difflib.SequenceMatcher(None, [t[0] for t in old], [t[0] for t in new], autojunk=False)
+    minutes = 0.0
+    for operation, i, j, k, l in matcher.get_opcodes():
+        if operation != "equal":
+            minutes += max(sum(1 / rates[t[1]] for t in old[i:j]),
+                           sum(1 / rates[t[1]] for t in new[k:l]))
+    old_media, new_media = Counter(previous["media"]), Counter(current["media"])
+    minutes += 2 * max(sum((old_media - new_media).values()), sum((new_media - old_media).values()))
+    if not minutes:
+        return 0
+    for field, weight in (("paragraphs", 0.4), ("tables", 4), ("headings", 1.5)):
+        minutes += abs(current[field] - previous[field]) * weight
+    return min(6000, max(1, round(minutes)))
+
+
+def baseline_path(path, explicit):
+    document = Path(path).resolve()
+    if explicit:
+        state = Path(explicit).expanduser().resolve()
+    else:
+        default = (Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+                   if os.name == "nt" else Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")))
+        root = Path(os.environ.get("DOCX_META_STATE_DIR", default / "docx-meta")).expanduser()
+        key = hashlib.sha256(os.path.normcase(str(document)).encode("utf-8")).hexdigest()
+        state = (root / (key + ".json")).resolve()
+    if state == document or state == Path(str(document) + ".bak"):
+        raise ValueError("state file must be separate from the document and its backup")
+    if state.exists() and os.path.samefile(state, document):
+        raise ValueError("state file aliases the document")
+    if state.suffix.lower() != ".json":
+        raise ValueError("--state-file must be a JSON path")
+    return state
+
+
+def read_baseline(path):
+    if not path.exists():
+        return None
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        snapshot = state["snapshot"]
+        valid = (state["version"] == 1 and type(state["total_minutes"]) is int
+                 and state["total_minutes"] >= 0 and type(state["estimated"]) is bool
+                 and isinstance(state["source"], str)
+                 and bool(parse_dt(state["created"])) and bool(parse_dt(state["modified"]))
+                 and isinstance(snapshot["tokens"], list) and isinstance(snapshot["media"], list)
+                 and isinstance(snapshot["content_hash"], str)
+                 and bool(re.fullmatch(r"[a-f0-9]{64}", snapshot["content_hash"]))
+                 and all(type(snapshot[k]) is int and snapshot[k] >= 0
+                         for k in ("paragraphs", "tables", "headings"))
+                 and all(isinstance(t, list) and len(t) == 2 and isinstance(t[0], str)
+                         and re.fullmatch(r"[a-f0-9]{64}", t[0]) and t[1] in ("char", "word")
+                         for t in snapshot["tokens"])
+                 and all(isinstance(h, str) and re.fullmatch(r"[a-f0-9]{64}", h)
+                         for h in snapshot["media"]))
+        if not valid:
+            raise ValueError("invalid baseline fields")
+        return state
+    except (ValueError, TypeError, KeyError, AttributeError, OverflowError) as exc:
+        raise ValueError(f"invalid baseline {path}; preserve it before using --mode initial to reset") from exc
+
+
+@contextmanager
+def baseline_lock(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock = Path(str(path) + ".lock")
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError(f"baseline is locked: {lock}; check the owning process, do not remove a live lock") from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump({"pid": os.getpid()}, stream)
+        yield
+    finally:
+        lock.unlink()
+
+
+def resolve_minutes(args, entries, stats, snapshot, baseline):
+    if args.edit_minutes is not None:
+        return args.edit_minutes, "explicit-total", False
+    if args.add_minutes is not None:
+        return baseline["total_minutes"] + args.add_minutes, "baseline+manual", baseline["estimated"]
+    app = entries.get("docProps/app.xml")
+    value = ET.fromstring(app).findtext(f"{{{APP}}}TotalTime", "0") if app else "0"
+    try:
+        native_total = max(0, int(value))
+    except (TypeError, ValueError):
+        native_total = 0
+    if baseline is None:
+        if native_total and args.mode != "initial":
+            return native_total, "document-total", False
+        return estimate_minutes(stats, args.chars_per_min, args.words_per_min), "initial-estimate", True
+    if native_total > baseline["total_minutes"]:
+        return native_total, "editor-total", baseline["estimated"]
+    added = estimate_delta(baseline["snapshot"], snapshot, args.chars_per_min, args.words_per_min)
+    if added:
+        return baseline["total_minutes"] + added, "baseline+estimated-delta", True
+    if snapshot["content_hash"] != baseline["snapshot"]["content_hash"]:
+        _out("  warning: formatting/review duration is unknown; use --add-minutes N if known")
+    return baseline["total_minutes"], "baseline-preserved", baseline["estimated"]
 
 
 def get_or_add(root, ns, tag):
@@ -430,32 +580,55 @@ def inspect(path, entries, accessed):
 def process(path, args):
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
+    state_path = baseline_path(path, args.state_file)
+    baseline = None if args.mode == "initial" and not args.inspect else read_baseline(state_path)
+    if not args.inspect and (args.mode == "update" or args.add_minutes is not None) and baseline is None:
+        raise ValueError("baseline missing; first initialize with auto/--edit-minutes, or select the original --state-file")
+    if args.inspect or args.dry_run:
+        process_document(path, args, state_path, baseline)
+        return
+    with baseline_lock(state_path):
+        baseline = None if args.mode == "initial" else read_baseline(state_path)
+        if (args.mode == "update" or args.add_minutes is not None) and baseline is None:
+            raise ValueError("baseline disappeared before processing")
+        process_document(path, args, state_path, baseline)
+
+
+def process_document(path, args, state_path, baseline):
     if args.inspect:
         st = os.stat(path)
         infos, entries = load_package(path)
         inspect(path, entries, dt.datetime.fromtimestamp(st.st_atime, dt.timezone.utc))
+        _out(f"  state.file={state_path}")
+        if baseline:
+            _out(f"  state.totalTime={baseline['total_minutes']}min source={baseline['source']} estimated={baseline['estimated']}")
+        else:
+            _out("  state.totalTime=<missing>")
         return
     infos, entries = load_package(path)
 
     stats = text_stats(entries.get("word/document.xml", b""))
+    snapshot = content_snapshot(entries, stats)
     fs_created, modified = file_times(path)
     created_override = parse_dt(args.created)
     modified_override = parse_dt(args.modified)
     modified = modified_override or modified
-    edit_minutes = (
-        max(0, args.edit_minutes)
-        if args.edit_minutes is not None
-        else estimate_minutes(stats, args.chars_per_min, args.words_per_min)
-    )
+    edit_minutes, source, estimated = resolve_minutes(args, entries, stats, snapshot, baseline)
+    if args.pages is not None:
+        stats["pages"] = args.pages
     if args.copy_style:
         if modified_override is None:
             floor = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=2)
             if modified > floor:
                 modified = floor.replace(microsecond=0)
-        created = created_override or (modified - dt.timedelta(minutes=edit_minutes))
-        shifted = created_override is None
+        if baseline and created_override is None:
+            created, shifted = align_timeline(parse_dt(baseline["created"]), modified, edit_minutes)
+        else:
+            created = created_override or (modified - dt.timedelta(minutes=edit_minutes))
+            shifted = created_override is None
     else:
-        created, shifted = align_timeline(created_override or fs_created, modified, edit_minutes)
+        previous_created = parse_dt(baseline["created"]) if baseline else fs_created
+        created, shifted = align_timeline(created_override or previous_created, modified, edit_minutes)
 
     entries["docProps/core.xml"] = build_core(entries.get("docProps/core.xml"), args, created, modified)
     entries["docProps/app.xml"] = build_app(entries.get("docProps/app.xml"), args, stats, edit_minutes)
@@ -490,7 +663,10 @@ def process(path, args):
         span = round((modified - created).total_seconds() / 60)
         _out(f"  timeline: created aligned so span={span}min == totalTime")
     _out(f"  author={args.author or '<removed>'} company={args.company or '<removed>'}")
-    _out(f"  totalTime={edit_minutes}min revision={args.revision}")
+    _out(f"  totalTime={edit_minutes}min revision={args.revision} source={source} estimated={estimated}")
+    if baseline:
+        _out(f"  previousTotal={baseline['total_minutes']}min change={edit_minutes - baseline['total_minutes']:+d}min")
+    _out(f"  state.file={state_path}")
     _out(
         "  stats: "
         f"pages={stats['pages']} words={stats['words']} chars={stats['chars']} "
@@ -502,26 +678,45 @@ def process(path, args):
         _out("  dry-run: nothing written")
         return
 
-    if args.backup:
-        backup = path + ".bak"
-        if os.path.exists(backup):
-            backup += dt.datetime.now().strftime(".%Y%m%d%H%M%S")
-        shutil.copy2(path, backup)
-        _out(f"  backup: {backup} (keeps original metadata; delete after verification)")
-
-    rewrite_package(path, infos, entries, drops, zip_stamp(modified.astimezone()))
-    if args.copy_style:
-        os.utime(path, (dt.datetime.now(dt.timezone.utc).timestamp(), modified.timestamp()))
-        _out("  written (copy-style: fs creation follows rewrite time)")
-        return
-    os.utime(path, (modified.timestamp(), modified.timestamp()))
-    times_restored = restore_file_times(path, created, modified)
-    if os.name != "nt":
-        _out("  written (copy-style: fs creation follows rewrite time)")
-    elif times_restored:
-        _out("  written (file times restored)")
-    else:
-        _out("  written (birthtime not settable; fs creation follows rewrite time -> copy-style)")
+    state = {
+        "version": 1, "total_minutes": edit_minutes, "source": source, "estimated": estimated,
+        "created": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "modified": modified.strftime("%Y-%m-%dT%H:%M:%SZ"), "snapshot": snapshot,
+    }
+    fd, pending = tempfile.mkstemp(prefix=".docx-meta-", suffix=".tmp", dir=state_path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(state, stream, ensure_ascii=False, separators=(",", ":"))
+            stream.flush()
+            os.fsync(stream.fileno())
+        if args.backup:
+            backup = path + ".bak"
+            if os.path.exists(backup):
+                backup += dt.datetime.now().strftime(".%Y%m%d%H%M%S%f")
+            shutil.copy2(path, backup)
+            _out(f"  backup: {backup} (keeps original metadata; do not deliver it)")
+        rewrite_package(path, infos, entries, drops, zip_stamp(modified.astimezone()))
+        if args.copy_style:
+            os.utime(path, (dt.datetime.now(dt.timezone.utc).timestamp(), modified.timestamp()))
+            written = "copy-style: fs creation follows rewrite time"
+        else:
+            os.utime(path, (modified.timestamp(), modified.timestamp()))
+            times_restored = restore_file_times(path, created, modified)
+            if os.name != "nt":
+                written = "copy-style: fs creation follows rewrite time"
+            elif times_restored:
+                written = "file times restored"
+            else:
+                written = "birthtime not settable; fs creation follows rewrite time -> copy-style"
+        try:
+            os.replace(pending, state_path)
+        except OSError as exc:
+            raise OSError(f"DOCX written with TotalTime={edit_minutes}, but baseline save failed; "
+                          f"recover with --edit-minutes {edit_minutes} before further editing: {exc}") from exc
+    finally:
+        if os.path.exists(pending):
+            os.remove(pending)
+    _out(f"  written ({written})")
 
 
 def main():
@@ -531,9 +726,15 @@ def main():
     ap.add_argument("--author", help="keep/set this author; default removes author fields")
     ap.add_argument("--company", default="", help="company value; default empty")
     ap.add_argument("--title", help="document title; default removes it")
-    ap.add_argument("--created", help="ISO datetime; default file creation time")
+    ap.add_argument("--created", help="ISO datetime; default prior baseline or file creation time")
     ap.add_argument("--modified", help="ISO datetime; default file modification time")
-    ap.add_argument("--edit-minutes", type=int, help="total editing minutes; default estimated from text")
+    ap.add_argument("--mode", choices=("auto", "initial", "update"), default="auto",
+                    help="auto initializes or accumulates; initial resets; update requires a baseline")
+    duration = ap.add_mutually_exclusive_group()
+    duration.add_argument("--edit-minutes", type=int, help="absolute total minutes; replaces the baseline total")
+    duration.add_argument("--add-minutes", type=int, help="append a new session's minutes to the saved baseline")
+    ap.add_argument("--state-file", help="external JSON baseline; one document only, useful after a rename")
+    ap.add_argument("--pages", type=int, help="actual rendered page count, overriding the estimate")
     ap.add_argument(
         "--copy-style",
         action="store_true",
@@ -549,8 +750,16 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--backup", action="store_true")
     args = ap.parse_args()
-    if args.chars_per_min <= 0 or args.words_per_min <= 0:
-        ap.error("--chars-per-min and --words-per-min must be positive")
+    if any(not math.isfinite(rate) or rate <= 0 for rate in (args.chars_per_min, args.words_per_min)):
+        ap.error("--chars-per-min and --words-per-min must be finite and positive")
+    if any(value is not None and value < 0 for value in (args.edit_minutes, args.add_minutes)):
+        ap.error("editing minutes must be non-negative")
+    if args.pages is not None and args.pages <= 0:
+        ap.error("--pages must be a positive integer")
+    if args.state_file and len(args.paths) != 1:
+        ap.error("--state-file requires exactly one document")
+    if args.mode == "initial" and args.add_minutes is not None:
+        ap.error("--add-minutes cannot be combined with --mode initial")
     args.revision = max(1, args.revision)
 
     failed = False
