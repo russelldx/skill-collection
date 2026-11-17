@@ -4,13 +4,13 @@
 
 > **核心入口：`session-handoff`** — 跨会话交接、专家团角色协作、Qoder CLI 会话内并行 agent 派发。任何跨多会话、分批推进或需要把踩坑留给后续会话的任务，默认推荐安装；如果 agent 决定不推荐它，必须在清单里写明理由，不能静默跳过。
 
-本仓库现有 **64 个活动入口**，另有 4 个合并参考和 4 个暂停入口。活动入口包含按用户授权从上游 `firecrawl/cli`、`firecrawl/skills` 新增的 8 个检索与集成入口，以及本地维护的 `docx-meta` 元数据清理入口。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过；新增的 8 个 Firecrawl 入口与 `docx-meta` 的验证范围见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
+本仓库现有 **65 个活动入口**，另有 4 个合并参考和 4 个暂停入口。活动入口包含按用户授权从上游 `firecrawl/cli`、`firecrawl/skills` 新增的 8 个检索与集成入口，以及本地维护的 `docx-meta` 元数据清理入口和 `shuorenhua` 中文编辑入口。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过；新增的 8 个 Firecrawl 入口与 `docx-meta` 的验证范围见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
 ## 快速开始
 
 将本仓库地址或 `README.md` + [INDEX.md](./INDEX.md) 交给你的 agent，并要求它：
 
-1. **先给出完整清单，再做减法。** 按 `INDEX.md` 的分类逐类过一遍 64 个活动入口，每个入口一行，标出“推荐安装 / 暂不推荐 / 不适用”和一句理由；不允许只挑几个就结束，也不允许静默跳过整类。
+1. **先给出完整清单，再做减法。** 按 `INDEX.md` 的分类逐类过一遍 65 个活动入口，每个入口一行，标出“推荐安装 / 暂不推荐 / 不适用”和一句理由；不允许只挑几个就结束，也不允许静默跳过整类。
 2. **默认推荐 `session-handoff`。** 多会话任务、需要交接文档、使用专家团或并行 agent 的任务，必须把它列为首选；跳过时必须在清单中写明“为什么不装”。它是本仓库的核心入口，不是可选装饰。
 3. 根据任务从 `skills/` 选择需要的技能，不扫描归档作为可安装技能；不把合并参考或暂停入口当成可运行技能。
 4. 检查目标环境的运行时、工具、子代理能力及已安装版本。
@@ -32,7 +32,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 
 | 状态 | 数量 | 位置 / 含义 |
 |------|------|-------------|
-| 活动 | 64 | `skills/<name>/SKILL.md`，按需安装；个别执行分支仍有明确限制 |
+| 活动 | 65 | `skills/<name>/SKILL.md`，按需安装；个别执行分支仍有明确限制 |
 | 已合并 | 4 | 原内容保留为主技能的 `references/**/REFERENCE.md`，不再单独自动触发 |
 | 暂停 | 4 | `archive/disabled/<name>/REFERENCE.md`，仅供审阅，不安装、不运行 hooks 或启动循环 |
 
@@ -59,6 +59,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 | 本机浏览器登录态、书签/历史、站点经验 | `web-access`，不依赖 Chrome DevTools MCP |
 | 课程作业 | `course-assignment`（已强制接入 `docx-meta` 收尾）；平台上传、填写答案、提交均须明确授权 |
 | 需求 | `gen-prd`（访谈）→ `decompose-prd`（拆解）；`prd-reviewer` 的专用量表需先确认适用 |
+| 中文顺句与信息保全 | `shuorenhua`：默认附简短改动摘要；可授权安装 `assets/chinese-writing.md` 到 `~/.qoder/rules/chinese-writing.md`，不复制个人全局配置 |
 | 跨会话交接、多会话协作 | `session-handoff`（核心入口，默认推荐）；专家团与 Qoder CLI 并行 agent 模式见其 references |
 | 记忆检索 | `claude-mem-mem-search`、`claude-mem-smart-explore`、`claude-mem-knowledge-agent`；与 `session-handoff` 分工不同：一个检索记忆，一个维护交接状态 |
 | 安全截图（仅截目标窗口）、按指定路径保存、屏幕取字 | 仓库自带 MCP [`mcps/snipaste-mcp`](./mcps/snipaste-mcp/README.md)（非 skill）；默认只截经覆盖校验的窗口矩形，桌面截图须显式授权；文字提取需 Snipaste PRO |
@@ -79,7 +80,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 | snipaste-mcp（仓库自带 MCP） | Node.js 18+ 与 Snipaste 2.x，便携版可用；窗口安全截图与 `snip_view` 仅支持 Windows（`snip_view` 另需 Edge 或 Chrome），截桌面须显式 `allow_desktop`；阴影、文字提取属 PRO 功能，免费版静默不产出 |
 | hooks / 子代理 | 宿主支持和权限需分别确认；安装技能不会自动授权注册 hooks |
 
-根目录 [.mcp.json](./.mcp.json) 提供 Firecrawl 和 Chrome DevTools 的项目配置示例。文件被客户端识别不等于服务安装、授权、启动或实际操作成功；其他客户端的配置格式和环境变量展开方式需按其文档适配。仓库自带的 [mcps/snipaste-mcp](./mcps/snipaste-mcp/README.md) 是唯一需要本地 `npm ci` 的 MCP，不包含在 `.mcp.json` 示例中，也不属于 64 个活动 skill 入口。
+根目录 [.mcp.json](./.mcp.json) 提供 Firecrawl 和 Chrome DevTools 的项目配置示例。文件被客户端识别不等于服务安装、授权、启动或实际操作成功；其他客户端的配置格式和环境变量展开方式需按其文档适配。仓库自带的 [mcps/snipaste-mcp](./mcps/snipaste-mcp/README.md) 是唯一需要本地 `npm ci` 的 MCP，不包含在 `.mcp.json` 示例中，也不属于 65 个活动 skill 入口。
 
 详细配置与分层验证见 [MCP-SETUP.md](./MCP-SETUP.md)。本仓库不含可直接套用的个人 claude-mem 路径或任何 API Key。
 

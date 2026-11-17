@@ -65,5 +65,6 @@
 
 ## 领域附加节（按需保留）
 
+- 中文成稿（通用）：遵循 `session-handoff` 核心的「中文表达」约定，默认按 `shuorenhua` 顺句子，保留独立信息；只在改写已有文字时于回复附改动摘要。此行仅作提示，不替代核心规则加载。
 - 编程项目：规范章节模板 `assets/code-standard-template.md`；已有 AGENTS 规则只引用，不复制维护。
 - 专家团：按 TEAM.md/BRIEF.md/OUTBOX.md/QUESTIONS.md 协议协作；主角色核验后补录，隔离角色不读共享恢复包。

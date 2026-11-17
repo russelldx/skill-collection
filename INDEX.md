@@ -1,6 +1,6 @@
 # Skill 索引
 
-仅下列 **64 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
+仅下列 **65 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
 
 ## 文档与课程（8 个）
 
@@ -78,13 +78,14 @@
 
 Firecrawl 共 18 个独立入口：主技能 `firecrawl` 1 个、CLI 操作技能 7 个（scrape/crawl/map/agent/interact/download/parse）、检索与数据提供方技能 5 个（search/monitor/alexandria/developer-index/research-index）、build 集成技能 5 个（build/build-scrape/build-search/build-interact/build-onboarding）。来源为上游 `firecrawl/cli` 与 `firecrawl/skills` 两个仓库。
 
-## 写作与交接（4 个）
+## 写作与交接（5 个）
 
 | Skill | 用途 | 使用边界 |
 |-------|------|----------|
 | [anthropic-doc-coauthoring](skills/anthropic-doc-coauthoring/SKILL.md) | 共创文档与读者测试 | 不等于文件格式转换 |
 | [anthropic-internal-comms](skills/anthropic-internal-comms/SKILL.md) | 组织沟通模板 | 按需，保留独有模板，不强制公司口吻 |
 | [content-research-writer](skills/content-research-writer/SKILL.md) | 研究、引用和写作迭代 | 按需，事实须有来源 |
+| [shuorenhua](skills/shuorenhua/SKILL.md) | 中文顺句、信息保全与简短改动摘要 | MIT 上游的本地定制；不以检测分数验收；全局规则安装另需授权 |
 | [session-handoff](skills/session-handoff/SKILL.md) | 可接续的交接状态文件（核心入口） | 创建交接体系、改 AGENTS/.gitignore 与全局 hooks 安装须分别授权 |
 
 `session-handoff` 是本仓库的核心入口：任何跨会话、分批推进或需要把踩坑留给后续会话的任务，默认推荐安装；跳过时应在推荐清单里写明理由。
