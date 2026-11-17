@@ -8,10 +8,10 @@ skill 的 hook 属于"语义上的一部分、运行时在别处"。以前只存
 
 - `handoff-stamp.sh` — PostToolUse hook。Edit/Write 命中 `*交接*` / `*实施计划*` / `TEAM.md` / `HANDOFF.md`（含 `~/.qoder/handoffs/`、`.handoff/` 下的路径）时，把文档绝对路径写入 `~/.qoder/tmp/handoff_updated_<session_id>` 作为"本会话改过"标记；`archive/`、`.backup/` 下的写入不计数。已触发过一次 Stop 检查后不再重新武装（防循环）。
   - 2026-10-31 修正：旧版只认中文文件名，而 skill 默认产出的是 `HANDOFF.md`，两套命名对不上 → 标记永远打不上，Stop 检查静默放行。现补上 `HANDOFF.md` / `handoff.md` 与 handoffs 路径线索。
-- `handoff-stop-check.sh` — Stop hook。会话结束一次性拦截：
-  - **①** 小节：改过文档但没写本节 → 补上
-  - **②** 折叠/归档（活跃区字节超阈才触发）：先跑 `handoff.py index` 看 INDEX.md 的 ⚠ 待折叠清单，据此折 §0；仍超阈才物理搬 archive/
-  - **③** 读模型（STATE.json 缺失或早于文档改动才触发）：同轮刷新 STATE.json 使 status/openBlockers/nextActions/updatedAt 反映真相
+- `handoff-stop-check.sh` — Stop hook，主agent回复结束时一次性提醒，不等于会话退出或自动验收：
+  - **①** 小节：提醒核对本轮记录，hook本身不验证记录内容。
+  - **②** 归档（主文档整文件字节超阈）：先检查角色/授权与任务闭环，archive默认预览，获准后 --apply 原样搬移；摘要不能代替物理减载。
+  - **③** 读模型（STATE.json 缺失或早于文档改动）：新版从当前态 refresh 派生，validate/context 校验来源hash与内容；旧版按人工流程，不擅自迁移。
   - 阈值 `HANDOFF_SIZE_LIMIT`（默认 20480），退出码 2 = 阻断，标"确认无需"可跳过（一次性）
 
 ## 部署与升级
@@ -30,4 +30,4 @@ python scripts/handoff.py install-hooks --target "$HOME/other/hooks"
 
 ## 其他宿主 / 部署目标
 
-`~/.qoder/hooks/` 是默认运行时位置。若其他宿主或环境也有等价 hook 加载目录，用 `install-hooks --target <新路径>` 部署即可，源不动。（历史：QoderWork 时代的 `~/.qoderwork/` 双副本已于 2026-09-15 随迁移删除，现 `.qoder` 为唯一权威。）
+`~/.qoder/hooks/` 是默认运行时位置。其它宿主必须先验证事件/输入/输出协议；`install-hooks --target` 只复制文件，不负责注册或保证兼容。本目录仍只有原有打标与Stop提醒源码，没有部署压缩恢复或聊天采集hook；Qoder可选接入边界见 `references/state-schema.md`。

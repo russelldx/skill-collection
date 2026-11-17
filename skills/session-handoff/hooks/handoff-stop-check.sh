@@ -2,7 +2,7 @@
 # session-handoff hook 2/3：Stop 时一次性拦截检查
 #   检查①：本会话改过交接文档 → 是否已追加本次会话小节
 #   检查②：本会话改过的活跃交接文档字节数是否超归档阈值（防文档无限膨胀）
-#   检查③：追加小节后是否同轮刷新了旁侧 STATE.json 读模型（超阈则先折叠 §0 再搬 archive）
+#   检查③：追加小节后旁侧 STATE.json 是否更新；内容/来源校验交 validate/context
 # 标记文件内容 = 本会话命中的文档绝对路径（正斜杠，一行一个），由 handoff-stamp.sh 写入
 # 一次性：触发后消费标记并落 gate，不再重复拦截
 LIMIT=${HANDOFF_SIZE_LIMIT:-20480}
@@ -67,11 +67,11 @@ touch "$HOME/.qoder/tmp/handoff_gate_$SID"
   if [ -n "$OVER" ]; then
     echo
     echo "② 折叠/归档（强制，非建议）：以下活跃交接文档已超阈值 —— $OVER"
-    echo "   处理顺序：先对每个超阈目录跑 index，读 INDEX.md 顶部的「⚠ 待折叠」清单挑候选节 →"
-    echo "   把最老的已标「已完成 / 定稿 / 不改」小节摘要进文档顶部的 §0 滚动摘要（就地折叠，"
-    echo "   正文原小节可留在活跃区供 grep 精确定位）；若 §0 折叠后活跃区字节仍超阈，才把整节移到同目录"
-    echo "   archive/<同名文件>（档案只读、不追加），主文档留未闭环小节 + 归档指针；保留原小节编号使跨节引用仍可解析；"
-    echo "   引用了该文档路径的 AGENTS.md 同步更新。移动前先把原文备份到 .backup/。最后再跑一次 index 刷新索引。"
+    echo "   先检查授权与角色隔离，再跑 index；20KB 是主文档整文件字节，不是 token 数。"
+    echo "   新版文档核验任务 done/verified/archiveReady/evidence/openItems 后，用 archive <目录> <任务ID> 只读预览。"
+    echo "   已获移动授权才加 --apply：备份、校验、原样搬 archive/<任务ID>.md，保留节号与指针，再 validate/index。"
+    echo "   只加摘要却保留正文不会降低体积；没有可归档任务或用户正在编辑时，报告并停止，不删未决或限制。"
+    echo "   旧文档按人工归档协议处理；不自动迁移、不改 AGENTS.md/.gitignore，不因本提示扩大授权。"
     echo "   逐目录命令："
     printf '%s' "$OVER_DIRS" | sort -u | while IFS= read -r d; do
       [ -z "$d" ] && continue
@@ -81,8 +81,8 @@ touch "$HOME/.qoder/tmp/handoff_gate_$SID"
   if [ -n "$STATE_BAD" ]; then
     echo
     echo "③ 读模型 STATE.json（强制同步）：以下文档的旁侧 STATE.json 缺失或早于文档改动 —— $STATE_BAD"
-    echo "   处理：新会话靠它 O(1) 取当前态，过期比没有更有害。同轮刷新/创建它，使 status/openBlockers/"
-    echo "   nextActions/fileOwnership/updatedAt 反映追加后的真相；字段与格式见 skill 的 references/state-schema.md。"
+    echo "   处理：新版先核对当前态与事件，再在授权范围运行 refresh 派生 STATE.json/§0；不得手写第二份账。"
+    echo "   validate/context 校验来源hash和内容；此hook只作时间/体积提醒。旧版与角色隔离细则见 references/state-schema.md。"
     echo "   逐目录校验："
     printf '%s' "$STATE_BAD_DIRS" | sort -u | while IFS= read -r d; do
       [ -z "$d" ] && continue
