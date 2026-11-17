@@ -1,6 +1,6 @@
 # 验证范围与复现方法
 
-本仓库不再使用“64 个 skill 全部可用”或“所有 agent 完全兼容”的结论。全文审查、结构检查、隔离脚本测试和真实平台验收是不同层次；一层通过不能代替另一层。本文中“通过”仅表示对应隔离测试通过，不代表技能在真实环境完成端到端验收。
+本仓库不再使用“64 个 skill 全部可用”或“所有 agent 完全兼容”的结论。全文审查、结构检查、隔离脚本测试和真实平台验收分属不同层次；通过其中一层，不能代替另一层的检查。本文中“通过”只表示对应的隔离测试通过，不代表技能已在真实环境中完成端到端验收。
 
 ## 结构验证
 
@@ -9,42 +9,42 @@ python validate-skills.py
 bash validate-skills.sh
 ```
 
-两条命令调用同一验证器，失败返回非零退出码。检查范围：
+两条命令调用同一验证器，验证失败时返回非零退出码。检查范围：
 
-- `skills/` 下 65 个活动入口（新增 `shuorenhua`），必需 frontmatter 字段和名称唯一性。
+- `skills/` 下 65 个活动入口（新增 `shuorenhua`）是否具备必需的 frontmatter 字段，名称是否唯一。
 - 不允许参考目录中嵌套 `SKILL.md`；归档入口改为 `REFERENCE.md`。
-- `INDEX.md` 对活动技能的完整、无重复覆盖。
+- `INDEX.md` 是否完整列出活动技能，且没有重复。
 - 活动 `SKILL.md` 及根目录说明中的实际本地 Markdown 链接（不验证网页、锚点或代码示例）。
-- 本地链接大小写，即使在 Windows 上也能发现 Linux 下失效的引用。
-- MCP JSON 可解析，Chrome DevTools 包名正确，没有无效 claude-mem 包声明。
+- 本地链接的大小写，即使在 Windows 上也能发现 Linux 下会失效的引用。
+- MCP JSON 能否解析，Chrome DevTools 包名是否正确，是否存在无效的 claude-mem 包声明。
 
-验证器只检查必需 frontmatter 字段，不是完整 YAML 解析器；也不执行技能自然语言指令或验证全部正文承诺。另用隔离安装的 PyYAML 6.0.3 对 55 个活动入口的 frontmatter 做过交叉解析（全部有效，0 错误）；该检查不替代运行时行为。
+验证器只检查必需的 frontmatter 字段，不是完整的 YAML 解析器；它也不会执行技能中的自然语言指令，或验证正文中的全部承诺。另用隔离安装的 PyYAML 6.0.3 对 55 个活动入口的 frontmatter 做过交叉解析（全部有效，0 错误）；这项检查不能代替对运行时行为的验证。
 
-下文的**逐文件静态审查**、**内容哈希对比**和 **PyYAML 交叉解析**中的「55 个」是当时实际覆盖的入口集合，不含本轮新装的 8 个 Firecrawl 检索/集成入口，也不含本轮删除的孤儿文件所属入口之外的新增内容；把这些数字统一抬高会凭空多出未做过的覆盖，因此保留原值。新装的 8 个入口目前只经过结构、frontmatter、本地链接与凭据扫描，未做逐文件静态审查和端到端运行验证。本轮唯一被撤下的覆盖是 `test_recalc.py`（见上表），不涉及入口计数。表中「同步引擎与 hook 55 项通过」的 55 是 unittest 用例数，与活动入口计数无关。
+下文的**逐文件静态审查**、**内容哈希对比**和 **PyYAML 交叉解析**中的「55 个」，指当时实际覆盖的那批入口。不含本轮新装的 8 个 Firecrawl 检索/集成入口，也不含本轮删除的孤儿文件所属入口之外的新增内容。统一抬高这些数字，会把没做过的检查也算进覆盖范围，因此保留原值。新装的 8 个入口目前只经过结构、frontmatter、本地链接与凭据扫描，未做逐文件静态审查和端到端运行验证。本轮唯一被撤下的测试覆盖是 `test_recalc.py`（见上表），不涉及入口计数。表中「同步引擎与 hook 55 项通过」的 55 是 unittest 用例数，与活动入口计数无关。
 
 ## shuorenhua 中文表达验证（2026-11-17）
 
 本次新增 `shuorenhua`，活动入口 64→65；历史的 55/63/64 入口记录不改写成新覆盖范围。上游来源和 MIT 许可见该 skill。只提交独立的中文规则模板，不收录个人全局配置。
 
-- 静态检查：补齐 `~/.qoder/rules/chinese-writing.md` 的 `trigger: always_on`，修正“功能词必须逐字保留”与“默认只能删除语法赘词”的限制；检查新稿、只要正文、标注和修订模式的摘要边界。
-- 真实启动：Qoder CLI 1.1.90，以临时工作目录、无工具、无 MCP、非持久化模式启动新进程，未在提问中提供 skill 名称；返回 `shuorenhua` 并按已加载规则改写测试句，保留批准条件、日期、完整性、效率目的、未开始状态及不支持自动提交的否定。
-- 真实 skill 调用：另一次临时 CLI 运行只开放 `Skill` 工具；stream-json 中记录了 `Skill(shuorenhua)`。四个独立用例分别验证完整信息与默认摘要、只要正文、只标问题、程序代码块及未具名来源保护；逐项核对原文与输出，保护片段和输出模式检查通过。
+- 静态检查：补齐 `~/.qoder/rules/chinese-writing.md` 的 `trigger: always_on`，修正“功能词必须逐字保留”与“默认只能删除语法赘词”的限制；检查新稿、只要正文、标注和修订模式下，哪些情况应附摘要、哪些不应附。
+- 真实启动：Qoder CLI 1.1.90，用临时工作目录，在无工具、无 MCP、非持久化模式下启动新进程，未在提问中提供 skill 名称；返回 `shuorenhua` 并按已加载规则改写测试句，保留了批准条件、日期、完整性、效率目的、未开始状态，以及不支持自动提交这一否定。
+- 真实 skill 调用：另一次临时 CLI 运行只开放 `Skill` 工具；stream-json 中记录了 `Skill(shuorenhua)`。四个独立用例分别验证完整信息与默认摘要、只要正文、只标问题、程序代码块及未具名来源保护；逐项核对原文与输出后，保护片段和输出模式检查通过。
 - 实际例子：“用于复核”改为“用来复核”，保留“不支持自动提交”；“以提升效率”改为“来提高效率”，保留“完整工作链路”。代码、注释和字符串逐字未变，未具名专家的归因与“可能”仍在正文中。
-- 交接入口：中文约定放入 `session-handoff/SKILL.md` 核心；模板中的一行只作提示。`handoff.py init` 不读该 Markdown 模板，`context` 也不保证收录附加节，不能据模板落盘宣称自动继承。
-- 新稿补测：初次的摘要标签检查通过，但逐句审阅发现擅加“本周五”“维护完成后即恢复正常”，以及未改原文后的评价；补充断言后这三项失败。收紧新稿的时间、承诺与原样输出边界后，同题及新增的试用反馈/未来功能说明复测，正文的限定、状态和原样文本保留，8 项片段及模式检查通过。组合测试仍附了总体说明，不能据此承诺任意请求都能严格只输出正文。
+- 交接入口：中文约定放入 `session-handoff/SKILL.md` 核心；模板中的一行只作提示。`handoff.py init` 不读该 Markdown 模板，`context` 也不保证收录附加节。因此，不能因为模板已写入文件，就宣称这些约定会自动继承。
+- 新稿补测：初次的摘要标签检查通过，但逐句审阅发现，输出擅加了“本周五”“维护完成后即恢复正常”，还在未改原文时附了评价；补充断言后这三项失败。收紧新稿对时间、承诺和原样输出的限制后，用同题及新增的试用反馈/未来功能说明复测。正文保留了限定、状态和原样文本，8 项片段及模式检查通过。组合测试仍附了总体说明，不能据此承诺任意请求都能严格只输出正文。
 - 仓库回归：`PYTHONUTF8=1 python -B -m unittest discover -s tests -p 'test_*.py' -v`，140 项通过，0 失败、0 跳过（含交接 43 项、MCP smoke 25 项、结构验证器 17 项、同步引擎 55 项）。交接脚本另单独运行 43 项也通过，不叠加为新的用例数。
 
 以上是有限样本实测，不是 AI 检测评分，不保证任意文本或任意模型都无信息损失。脚本只核对实际输出的关键片段与模式，含义是否完整仍需逐句审阅。
 
 ## 提交时的暂存树校验（只读）
 
-`.githooks/pre-commit` 已替换为只读薄包装：它把 Git 索引中的对象物化到临时目录后用同一验证器校验，只输出提示和错误，**不复制、不暂存、不修改工作区或来源**。本机已将其安装为 `.git/hooks/pre-commit`，旧同步 hook 备份保留为 `.git/hooks/pre-commit.disabled`（勿启用）。行为边界：
+`.githooks/pre-commit` 已替换为只读的简单包装脚本：它先把 Git 索引中的对象写入临时目录，再用同一验证器校验。脚本只输出提示和错误，**不复制、不暂存、不修改工作区或来源**。本机已将其安装为 `.git/hooks/pre-commit`，旧同步 hook 的备份保留为 `.git/hooks/pre-commit.disabled`（勿启用）。行为边界：
 
 - 暂存树违反仓库规范（入口数不符、空 description、失效链接、冲突阶段、非常规文件模式）→ 返回非零，阻止提交。
-- 本机安装技能与仓库有无基线/差异只是提示行，不永久阻断无关提交。
-- 当前活动入口数为 65。历史的 `docx-meta` 批次从 63 增至 64 时，hook 实测 exit 0 并输出 `Active entries: 64; errors: 0`；这不是新增 `shuorenhua` 后的验证结果。历史提交 `d6ed444` 的索引曾是 63 入口旧树（hook 会以 19 项错误拦截）；修复提交 `96139fa` 后已恢复。索引含未暂存修改时 hook 只校验索引副本，不受工作区影响。
+- 本机安装技能与仓库之间是否有基线、是否有差异，都只作为提示显示，不会永久阻断无关提交。
+- 当前活动入口数为 65。历史的 `docx-meta` 批次从 63 增至 64 时，hook 实测 exit 0 并输出 `Active entries: 64; errors: 0`；这不是新增 `shuorenhua` 后的验证结果。历史提交 `d6ed444` 的索引曾是 63 入口旧树（hook 会以 19 项错误拦截）；修复提交 `96139fa` 后已恢复。索引含未暂存修改时，hook 只校验索引副本，不受工作区影响。
 
-维护者可另用 `python sync-skills.py check` 只读对比本机安装技能与仓库；任何同步必须用显式 `apply` 命令逐文件复核方向与哈希，工具永远不自动同步、不删除入口。导出到本机需先审阅差异并用 `approve` 记录哈希绑定（方向与双侧哈希任一变化即失效）。
+维护者也可以用 `python sync-skills.py check` 只读对比本机安装技能与仓库。任何同步都必须使用显式 `apply` 命令，逐文件复核方向与哈希；工具永远不自动同步，也不删除入口。导出到本机前，需先审阅差异，并用 `approve` 记录哈希绑定（方向与双侧哈希任一变化即失效）。
 
 ## 隔离回归
 
@@ -64,22 +64,22 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 测试 | 本轮结果 | 实际覆盖 |
 |------|----------|----------|
 | 仓库验证器 | 17 项通过 | frontmatter 必填字段、链接大小写/相对路径、代码示例排除、索引、归档、MCP 包操作数及缺失命令 |
-| 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出的哈希与方向绑定、`core.autocrlf` 检出字节的容忍；每次比较执行前后文件与索引哈希；含真实 Bash 包装执行。包装器用例原先把活动入口数写死为 55，改默认值即红；现从 `hook.__defaults__[0]` 派生 fixture 数量与断言，pre-commit 不跑本套件，所以入口数变更后须手工跑一次 |
+| 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出时绑定哈希与方向、容忍 `core.autocrlf` 检出时产生的字节差异；每次都比较执行前后的文件与索引哈希；也包含真实执行 Bash 包装脚本的测试。包装器用例原先把活动入口数写死为 55，修改默认值就会失败；现在根据 `hook.__defaults__[0]` 确定 fixture 数量与断言。pre-commit 不运行本套件，所以入口数变更后须手工运行一次 |
 | LibreOffice 重算 | 无自动化覆盖 | 原 mock 回归 `test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误（`recalc.signal` 已不存在），已删除；`recalc.py` 本体仍在，重算只在"真实环境中仍需验证"一节记录 |
 | MCP smoke 检查器 | 25 项通过 | 注入内存流与假会话：初始化、分页、超时、清理、isError、结构校验、启动器拒绝、证据标签；不外连 |
 | web-access 浏览器安全 | 本次 2 项通过、10 项失败（旧记录为 12 项通过） | docx-meta 修改前执行即失败，未修改本模块；失败涉及浏览器选择、身份复核和授权提示，具体用例见下节。不启动浏览器或监听端口 |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
 | 课程 DOCX 生成 | 3 项通过，无跳过 | 缺依赖预检查，以及使用现有 docx 包真实生成包含表格和图片的 DOCX，再校验媒体 |
-| DOCX 元数据清理 | 仓库侧与安装侧各 26 项通过 | 保留原清理/注册/时间线/作者覆盖测试；新增初次基线、WPS 清零/缺失恢复、绝对覆盖与手动追加、原生累计值去重、增删改文本、重复文字小改动、重复运行与空闲时间不计入、纯排版不编造耗时、改名续接、页数覆盖、只读预演、损坏/锁定基线拒绝；注入文件替换失败验证基线不前移、基线保存失败不丢修改时间锚点。样本与状态均在临时目录 |
+| DOCX 元数据清理 | 仓库侧与安装侧各 26 项通过 | 保留原清理/注册/时间线/作者覆盖测试；新增初次基线、WPS 清零/缺失恢复、绝对覆盖与手动追加、原生累计值去重、增删改文本、重复文字小改动、重复运行与空闲时间不计入、纯排版不编造耗时、改名续接、页数覆盖、只读预演、损坏/锁定基线拒绝；通过注入文件替换失败，验证基线不前移；也验证基线保存失败时，不丢失修改时间锚点。样本与状态均在临时目录 |
 | POI 删列停用 | 4 项通过 | 真实编译运行拒绝入口，确认输入/输出不变；其他命令只验证参数转发，不代表 POI 工作簿功能已验收 |
 
 测试在临时目录中生成样本并清理，不使用真实用户文件。运行前需要现有 Python/openpyxl、Node.js、Java 和 Bash；DOCX 生成测试在缺少现有 docx 包时会明确跳过，不能把跳过记作通过。
 
 ### docx-meta 累计模式的 Windows 属性验收（2026-11-01）
 
-对独立临时 DOCX，先设置 90 分钟并建立基线，模拟编辑器把包内 TotalTime 清零，再显式追加 15 分钟；Windows Shell `System.Document.TotalEditingTime` 读取为 105 分钟，详细属性显示 `01:45:00`。随后模拟等长替换一个英文词并再次清零，自动估算增量 1 分钟得到 106，普通重跑仍为 106；Shell 显示 `01:46:00`。原正文/媒体保留由回归验证，基线位于 DOCX 包外。
+对一份独立的临时 DOCX，先设置 90 分钟并建立基线，模拟编辑器把包内 TotalTime 清零，再显式追加 15 分钟。Windows Shell `System.Document.TotalEditingTime` 读取为 105 分钟，详细属性显示 `01:45:00`。随后模拟等长替换一个英文词并再次清零，自动估算的增量为 1 分钟，累计得到 106，普通重跑仍为 106；Shell 显示 `01:46:00`。回归测试验证了原正文/媒体保留，基线位于 DOCX 包外。
 
-这证明包内数值能经当前 Windows 属性处理程序显示，不是 Word/WPS GUI 的真实编辑保存测试，也不证明估算分钟数就是实际耗时。未修改任何用户交付文档或实验三的项目 wrapper。
+这证明当前 Windows 属性处理程序能显示包内数值，但不是 Word/WPS GUI 的真实编辑保存测试，也不证明估算分钟数就是实际耗时。未修改任何用户交付文档或实验三的项目 wrapper。
 
 ### docx-meta 累计模式维护时发现的独立失败（2026-11-01）
 
@@ -96,20 +96,20 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 - `checker verifies browser identity again after proxy startup`
 - `ambiguous browser selection never probes the fallback port`
 
-上游重构后已删除的回归与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目：`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误，因此连同其命令行一起撤下（见上表）。同时删除 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`（能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令）、以及 `anthropic-pptx/editing.md`、`pptxgenjs.md`（内容合并进精简后的 `SKILL.md`，且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`）。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再折回 `SKILL.md`，不靠保留过期副本。
+对于上游重构后已删除的回归测试与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目。`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误，因此连同其命令行一起撤下（见上表）。同时删除了 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`：相关能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令。另外也删除了 `anthropic-pptx/editing.md`、`pptxgenjs.md`：内容已合并进精简后的 `SKILL.md`，而且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再将内容补回 `SKILL.md`，而不是保留过期副本。
 
-此前会话曾发现：提交 `d6ed444` 的树因错误的同步 hook 用旧版本覆盖，未包含审计修复。其暂存对象（64 个 Git blob）仍存在于本地对象库；本轮已保存恢复前快照，并精确恢复 7 个安全相关脚本（重算、POI 拒绝入口、浏览器、DOCX 生成），上述测试即这些恢复的回归规格。其余参考文档候选的合入仍待逐项复核，未恢复不等于已丢失。
+此前会话曾发现：错误的同步 hook 用旧版本覆盖了提交 `d6ed444` 的树，导致其中未包含审计修复。其暂存对象（64 个 Git blob）仍存在于本地对象库。本轮已保存恢复前快照，并精确恢复了 7 个安全相关脚本（重算、POI 拒绝入口、浏览器、DOCX 生成），上述测试就是检查这些恢复结果的回归规格。其余候选参考文档能否合入，仍需逐项复核；未恢复不等于已丢失。
 
 ## 文档级静态审计（两批均已完成，修复已写入）
 
-- 55 个活动入口全部完成逐文件静态审查：文档与联网类 28 个（65 项发现，`test-env/recovery-20260922/review-docweb.json`），流程与自创类 27 个（51 项发现，`review-workflows.json`）；两份 JSON 不随仓库发布。
-- 审查发现已按范围修复（本轮共更新 80 余个 Markdown/参考文件与 7 个恢复脚本）。主要类别：
-  - 授权边界：远程 issue/PRD 发布与标签需显式授权、全局 hooks 安装需独立授权、登录/登出/切组织需授权、凭据不得出现在聊天/日志/命令行、提交/安装/发布/发送不再默认执行。
-  - 暂停一致性：`xls-poi` 删列/校验链标注 PAUSED，与脚本 exit 2 及 `poi_env.sh` 守卫一致；`POI_CLASSPATH` 要求写清。
+- 55 个活动入口已全部完成逐文件静态审查：文档与联网类 28 个（65 项发现，`test-env/recovery-20260922/review-docweb.json`），流程与自创类 27 个（51 项发现，`review-workflows.json`）；两份 JSON 不随仓库发布。
+- 审查发现的问题已按范围修复（本轮共更新 80 余个 Markdown/参考文件与 7 个恢复脚本）。主要类别：
+  - 授权边界：发布远程 issue/PRD 及设置标签需显式授权；安装全局 hooks 需独立授权；登录/登出/切组织需授权；凭据不得出现在聊天/日志/命令行；提交/安装/发布/发送不再默认执行。
+  - 暂停一致性：`xls-poi` 删列/校验链标注 PAUSED，与脚本 exit 2 及 `poi_env.sh` 守卫一致；`POI_CLASSPATH` 的要求必须写清。
   - 失效引用清理：不存在的 `/setup-*` 命令、未绑定的参考/模板文件、失效路径与锚点（如 `./visual-companion.md`、`./code-reviewer.md`）。
-  - 隐藏强制行为：不再强制接管所有联网、不再自动链式调用缺失技能、不再自动提交设计文档、worktree 只读检测后才请求安装授权。
-  - 平台假设：移除个人 Node 路径硬编码、uuidgen 依赖改为可移植方案、`claude -p` 段标注宿主专属。
-- 仍留有的低优先级项（未修复）：`content-research-writer`、`superpowers-dispatching-parallel-agents`、`superpowers-receiving-code-review`、`superpowers-verification-before-completion` 等 5 项宿主措辞/不可验证引用类小问题；不影响授权与安全边界。
+  - 隐藏强制行为：不再强制接管所有联网、不再自动链式调用缺失技能、不再自动提交设计文档；worktree 只有完成只读检测后，才请求安装授权。
+  - 平台假设：移除硬编码的个人 Node 路径，将 uuidgen 依赖改为可移植方案，并将 `claude -p` 段标注为宿主专属。
+- 仍留有的低优先级项（未修复）：`content-research-writer`、`superpowers-dispatching-parallel-agents`、`superpowers-receiving-code-review`、`superpowers-verification-before-completion` 等 5 项涉及宿主措辞/不可验证引用的小问题；不影响授权与安全边界。
 - 静态审查与文档修复不等于执行验证；修复后的技能未逐一在真实环境端到端执行。
 
 ## 许可与再分发
@@ -129,7 +129,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | Firecrawl MCP | 2026-09-22 用户提供 Key 并设置用户级 `FIRECRAWL_API_KEY` 后，隔离安装 firecrawl-mcp 3.25.2 实测通过：29 工具、`firecrawl_credit_usage` 返回 999/1000（isError=false）；原 401 解除，客户端重启后对其生效 |
 | claude-mem | 检索与语料库列表 worker fetch failed；AST 小样本未解析；未写入、未重启 worker |
 
-`.mcp.json` 保持为示例文件（含 `${FIRECRAWL_API_KEY}` 展开写法）；本轮唯一的本机配置变更是按用户提供的 Key 设置用户级环境变量 `FIRECRAWL_API_KEY`（未写入任何配置文件、未改客户端 MCP 条目或登录状态），移除方法见 MCP-SETUP.md 实测结果 一节。
+`.mcp.json` 仍是示例文件（含 `${FIRECRAWL_API_KEY}` 展开写法）。本轮唯一的本机配置变更，是按用户提供的 Key 设置用户级环境变量 `FIRECRAWL_API_KEY`；未写入任何配置文件，也未改客户端 MCP 条目或登录状态。移除方法见 MCP-SETUP.md 实测结果 一节。
 
 ## 真实环境中仍需验证
 
@@ -148,13 +148,13 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 
 ## 本机安装技能同步（2026-09-22 执行，经用户授权）
 
-对 55 个活动入口与 `~/.qoder/skills`、`~/.agents/skills` 做内容哈希对比（排除元数据与缓存；完整数据在 `test-env/recovery-20260922/local-compare.json`，不随仓库发布）。审计修复写入仓库后，曾有 45 个入口与本机旧安装存在差异（修复前为 16 个）。
+对 55 个活动入口与 `~/.qoder/skills`、`~/.agents/skills` 做了内容哈希对比（排除元数据与缓存；完整数据在 `test-env/recovery-20260922/local-compare.json`，不随仓库发布）。审计修复写入仓库后，曾有 45 个入口与本机旧安装存在差异（修复前为 16 个）。
 
-经用户授权后，用 `sync-skills.py` 的显式流程执行一次性同步（驱动脚本 `test-env/sync-local.py`：逐文件 `bind` → `approve` 登记审阅哈希 → `apply --direction export`）；每次写入前全量预检、逐文件备份于 `.git/skill-sync/<hash>/backups/`，失败回滚且不动基线。
+经用户授权后，用 `sync-skills.py` 的显式流程执行了一次性同步（驱动脚本 `test-env/sync-local.py`：逐文件 `bind` → `approve` 登记审阅哈希 → `apply --direction export`）。每次写入前，都先做全量预检，并将每个文件备份到 `.git/skill-sync/<hash>/backups/`；失败时回滚，且不改动基线。
 
 - 结果：**81 个文件导出写入本机**（含 web-access 安全脚本与测试、xls-poi 拒绝入口与参考、anthropic-xlsx 重算脚本、course-assignment DOCX 生成/校验脚本，以及 firecrawl、anthropic、superpowers、session-handoff 等系列的文档更新），101 个相同文件登记共同基线，0 跳过、0 失败；593 个受管文件全部有共同基线，无遗留的导出许可。
-- 复评（同步后重跑 `test-env/local-compare.py`）：**55 个入口中 54 个完全一致**；唯一剩余差异为 `session-handoff/hooks/`（含可执行 hook 的目录，按设计排除在自动同步外，其 README 差异保留待人工处置）。
+- 复评（同步后重跑 `test-env/local-compare.py`）：**55 个入口中 54 个完全一致**；唯一剩余差异为 `session-handoff/hooks/`（该目录含可执行 hook，按设计不参与自动同步，其 README 差异保留，待人工处置）。
 - 未改动：8 个已合并/暂停入口、`daibi`、`tuomin`、安装锁文件与任何全局 hooks；未删除任何本机文件。
-- 真实环境缺陷修复：本机 Git 的 `core.autocrlf=true` 使干净检出的文本文件为 CRLF 工作区 + LF blob，旧实现按裸字节判"未暂存修改"导致导出对 17+ 个已提交文件误报失败；现仅在 autocrlf=true 且为文本时接受该规范化等价（autocrlf 关闭时同字节仍判脏），回归见 `tests/test_skill_sync.py` 的 `test_export_accepts_committed_autocrlf_worktree_bytes`。
+- 真实环境缺陷修复：本机 Git 的 `core.autocrlf=true` 使干净检出的文本文件为 CRLF 工作区 + LF blob。旧实现按裸字节判"未暂存修改"，导致导出时对 17+ 个已提交文件误报失败。现在只在 autocrlf=true 且文件为文本时，接受这种规范化等价（autocrlf 关闭时同字节仍判脏）。回归见 `tests/test_skill_sync.py` 的 `test_export_accepts_committed_autocrlf_worktree_bytes`。
 
-导出授权机制：`approve FILE --repo-hash H --source-hash H` 把当时的双侧哈希登记为一次性许可；仓库侧未提交、来源或仓库内容在写前变化、目标有并发修改等情况都会拒绝写入，成功后许可清除并更新基线。`python sync-skills.py check` 可随时只读复核。
+导出授权机制：`approve FILE --repo-hash H --source-hash H` 把当时的双侧哈希登记为一次性许可。如果仓库侧未提交、来源或仓库内容在写入前变化，或目标有并发修改等，都会拒绝写入；成功后清除许可并更新基线。可随时用 `python sync-skills.py check` 只读复核。

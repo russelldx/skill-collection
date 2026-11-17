@@ -1,44 +1,44 @@
 # Skill 索引
 
-仅下列 **65 个活动入口** 位于 `skills/`。保留不代表默认安装或所有分支已验证；按任务选择并检查工具、运行时和授权。原有另外 8 个入口已合并或暂停，内容保留在本文末尾的位置。
+`skills/` 中只有下列 **65 个活动入口**。列在这里，不代表默认安装，也不代表所有执行分支都已验证。请按任务选择，并检查所需工具、运行时和授权。原有另外 8 个入口已合并或暂停，保留内容的存放位置见本文末尾。
 
 ## 文档与课程（8 个）
 
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
-| [anthropic-docx](skills/anthropic-docx/SKILL.md) | Word 创建、编辑、模板填充 | 按路线需要 Python / Node；模板由用户提供，不承诺捆绑缺失模板 |
-| [docx-meta](skills/docx-meta/SKILL.md) | Word 交付前元数据清理与时间线校正 | Python；只处理 `.docx`；处理前关闭 Word/WPS；清理后再保存会写回元数据 |
-| [anthropic-pdf](skills/anthropic-pdf/SKILL.md) | PDF 提取、合并、拆分与表单 | Python / PDF 工具，按操作检查依赖 |
-| [anthropic-pptx](skills/anthropic-pptx/SKILL.md) | 演示文稿生成与编辑 | Node / Python / 渲染工具；必须检查渲染结果 |
-| [anthropic-xlsx](skills/anthropic-xlsx/SKILL.md) | `.xlsx`、CSV、TSV 通用处理 | Python；Office 重算另需依赖，不能修改真实用户宏配置 |
-| [xls-poi](skills/xls-poi/SKILL.md) | BIFF8 / POI 表格分析与模板处理 | Java + POI；删列执行链路暂停，不能以旧验证器输出证明完整保真 |
-| [anthropic-slack-gif-creator](skills/anthropic-slack-gif-creator/SKILL.md) | Slack 动画 GIF | 按需，Python 及目录内依赖 |
-| [course-assignment](skills/course-assignment/SKILL.md) | 取题、实测、撰写、文档验收；生成 docx 后强制元数据收尾 | 按路线需要浏览器、Node / Python；上传和提交须明确授权 |
+| [anthropic-docx](skills/anthropic-docx/SKILL.md) | 创建、编辑 Word，填充模板 | 按处理方式准备 Python / Node；模板由用户提供，不保证附带所缺的模板 |
+| [docx-meta](skills/docx-meta/SKILL.md) | 交付 Word 前清理元数据、校正时间线 | Python；只处理 `.docx`；处理前关闭 Word/WPS；清理后再保存会写回元数据 |
+| [anthropic-pdf](skills/anthropic-pdf/SKILL.md) | 提取、合并、拆分 PDF，处理表单 | Python / PDF 工具，按具体操作检查依赖 |
+| [anthropic-pptx](skills/anthropic-pptx/SKILL.md) | 生成、编辑演示文稿 | Node / Python / 渲染工具；必须检查渲染结果 |
+| [anthropic-xlsx](skills/anthropic-xlsx/SKILL.md) | `.xlsx`、CSV、TSV 通用处理 | Python；通过 Office 重算还需要其他依赖，不能修改真实用户的宏配置 |
+| [xls-poi](skills/xls-poi/SKILL.md) | 分析 BIFF8 / POI 表格、处理模板 | Java + POI；删列流程已暂停，不能拿旧验证器的输出证明处理结果完整保真 |
+| [anthropic-slack-gif-creator](skills/anthropic-slack-gif-creator/SKILL.md) | 制作 Slack 动画 GIF | 按需使用，需 Python 及目录内的依赖 |
+| [course-assignment](skills/course-assignment/SKILL.md) | 取题、实测、撰写和验收文档；生成 docx 后必须完成元数据收尾处理 | 按处理方式准备浏览器、Node / Python；上传和提交须明确授权 |
 
 ## 开发流程与设计（13 个）
 
 | Skill | 用途 | 使用边界 |
 |-------|------|----------|
 | [superpowers-brainstorming](skills/superpowers-brainstorming/SKILL.md) | 澄清复杂或开放性设计 | 按需，明确的小任务或已批准详细方案不重复审批 |
-| [superpowers-writing-plans](skills/superpowers-writing-plans/SKILL.md) | 按可验收成果划任务、定义接口与验证重点 | 多步骤任务，是否写计划文件遵循用户要求 |
-| [superpowers-executing-plans](skills/superpowers-executing-plans/SKILL.md) | 直接执行已批准方案，保留批次证据与整体审查 | 尊重执行模式，遇到实质偏差或权限边界再确认 |
-| [superpowers-test-driven-development](skills/superpowers-test-driven-development/SKILL.md) | 红→绿→重构 | 不授予删除既有工作或绕过权限的授权 |
-| [superpowers-subagent-driven-development](skills/superpowers-subagent-driven-development/SKILL.md) | 按任务或同形批次委派，分阶段及整体审查 | 需宿主子代理能力；不假定继承上下文，修复评审最多两轮 |
-| [superpowers-dispatching-parallel-agents](skills/superpowers-dispatching-parallel-agents/SKILL.md) | 独立任务分治 | 按需，共享文件或有依赖的任务不盲目并行 |
-| [superpowers-systematic-debugging](skills/superpowers-systematic-debugging/SKILL.md) | 根因调试与性能回归诊断 | 已吸收 diagnosing-bugs 的复现、假设排序和测量方法 |
-| [superpowers-using-git-worktrees](skills/superpowers-using-git-worktrees/SKILL.md) | 隔离开发环境 | 按需；安装依赖、提交和清理仍须对应授权 |
-| [superpowers-verification-before-completion](skills/superpowers-verification-before-completion/SKILL.md) | 完成声明前检查证据 | 不用静态检查替代真实功能测试 |
-| [superpowers-requesting-code-review](skills/superpowers-requesting-code-review/SKILL.md) | 组织审查输入和时机 | 不代表自动发布 PR 或评论 |
-| [superpowers-receiving-code-review](skills/superpowers-receiving-code-review/SKILL.md) | 验证并处理评审意见 | 不盲从未经核实的建议 |
-| [codebase-design](skills/codebase-design/SKILL.md) | 深模块、接口与测试接缝 | 设计讨论，不强制引入抽象 |
-| [domain-modeling](skills/domain-modeling/SKILL.md) | 领域术语与架构决策 | 按需求维护领域模型 |
+| [superpowers-writing-plans](skills/superpowers-writing-plans/SKILL.md) | 按可验收的成果拆任务，定义接口和验证重点 | 用于多步骤任务；是否写计划文件，按用户要求处理 |
+| [superpowers-executing-plans](skills/superpowers-executing-plans/SKILL.md) | 直接执行已批准的方案，保留各批次证据并做整体审查 | 遵守已选的执行模式，遇到实质偏差或权限边界时再确认 |
+| [superpowers-test-driven-development](skills/superpowers-test-driven-development/SKILL.md) | 红→绿→重构 | 使用本技能不等于获得删除既有工作或绕过权限的授权 |
+| [superpowers-subagent-driven-development](skills/superpowers-subagent-driven-development/SKILL.md) | 按任务或同形批次委派，分阶段审查，并做整体审查 | 需要宿主支持子代理；不假定子代理会继承上下文，修复评审最多两轮 |
+| [superpowers-dispatching-parallel-agents](skills/superpowers-dispatching-parallel-agents/SKILL.md) | 把独立任务分开处理 | 按需使用；任务共享文件或互相依赖时，不盲目并行 |
+| [superpowers-systematic-debugging](skills/superpowers-systematic-debugging/SKILL.md) | 查找问题根因，诊断性能回归 | 已吸收 diagnosing-bugs 的复现、假设排序和测量方法 |
+| [superpowers-using-git-worktrees](skills/superpowers-using-git-worktrees/SKILL.md) | 隔离开发环境 | 按需使用；安装依赖、提交和清理仍要分别获得相应授权 |
+| [superpowers-verification-before-completion](skills/superpowers-verification-before-completion/SKILL.md) | 声称完成前核对证据 | 静态检查不能替代真实功能测试 |
+| [superpowers-requesting-code-review](skills/superpowers-requesting-code-review/SKILL.md) | 准备审查所需材料，安排审查时机 | 不会因此自动发布 PR 或评论 |
+| [superpowers-receiving-code-review](skills/superpowers-receiving-code-review/SKILL.md) | 核实并处理评审意见 | 不直接采纳未经核实的建议 |
+| [codebase-design](skills/codebase-design/SKILL.md) | 讨论深模块、接口和测试接缝 | 用于设计讨论，不强制引入抽象 |
+| [domain-modeling](skills/domain-modeling/SKILL.md) | 整理领域术语和架构决策 | 按需求维护领域模型 |
 
 ## 代码审查（2 个）
 
 | Skill | 用途 | 使用边界 |
 |-------|------|----------|
-| [code-review](skills/code-review/SKILL.md) | 标准与需求双轴审查 | 区分已提交差异、工作区和未跟踪文件；检查两轴实际覆盖相同范围 |
-| [diegosouzapw-deep-review](skills/diegosouzapw-deep-review/SKILL.md) | 多维专项审查 | 按需，需要适配子代理和脚本，不作为每次小改动的默认流程 |
+| [code-review](skills/code-review/SKILL.md) | 分别按标准和需求审查 | 区分已提交差异、工作区和未跟踪文件；核对两类审查实际覆盖的范围是否相同 |
+| [diegosouzapw-deep-review](skills/diegosouzapw-deep-review/SKILL.md) | 从多个方面做专项审查 | 按需使用，需要适配子代理和脚本；不把它作为每次小改动的默认流程 |
 
 ## 需求管理（5 个）
 
@@ -55,26 +55,26 @@
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
 | [web-access](skills/web-access/SKILL.md) | 本机登录态、CDP、书签/历史、站点经验 | Node.js 22+；历史另需 sqlite3 CLI；不依赖 Chrome DevTools MCP |
-| [firecrawl](skills/firecrawl/SKILL.md) | CLI 分流及结构化数据提供方发现 | 先检查版本和命令能力；MCP 是不同接口，不代替 CLI 验证 |
-| [firecrawl-scrape](skills/firecrawl-scrape/SKILL.md) | 已知页面提取或已确认的数据提供方执行 | 选择 Firecrawl 时使用；提供方须接口支持、契约匹配与授权 |
-| [firecrawl-crawl](skills/firecrawl-crawl/SKILL.md) | 多页或站点批量提取 | 控制范围与额度 |
-| [firecrawl-map](skills/firecrawl-map/SKILL.md) | URL 发现与枚举 | 不等于读取每一页正文 |
-| [firecrawl-agent](skills/firecrawl-agent/SKILL.md) | 异步结构化研究与已有任务查询 | 有界等待，检查终态、实际数据与额度，不重复提交未决任务 |
-| [firecrawl-interact](skills/firecrawl-interact/SKILL.md) | 云端浏览器交互 | 支持登录及 profile，但不自动继承本机登录态 |
-| [firecrawl-download](skills/firecrawl-download/SKILL.md) | 网站保存为本地文件 | 按需，实验性命令以实际 CLI 版本为准 |
-| [firecrawl-parse](skills/firecrawl-parse/SKILL.md) | Firecrawl 文档解析 | 按需，托管模式上传前明确确认；敏感本地文档优先本地处理 |
-| [firecrawl-search](skills/firecrawl-search/SKILL.md) | 网页检索与数据提供方/工作流发现 | 按需，Firecrawl CLI；结果额度与反馈退款以实际接口为准 |
-| [firecrawl-monitor](skills/firecrawl-monitor/SKILL.md) | 已知 URL 的变更监测与 webhook/邮件告警 | 按需，会安排后续检查任务；目标和范围须先授权 |
-| [firecrawl-alexandria](skills/firecrawl-alexandria/SKILL.md) | 工作流与数据提供方契约执行 | 需 Firecrawl 团队开通该能力；被门控的提供方不会调用 |
-| [firecrawl-developer-index](skills/firecrawl-developer-index/SKILL.md) | 仓库/issue/PR/README/文档索引检索 | 编程问题用；结果仍需核对版本与出处 |
-| [firecrawl-research-index](skills/firecrawl-research-index/SKILL.md) | 论文索引检索与全文问答 | 生物医学与 arXiv 为主，不外推为通用网页搜索 |
-| [firecrawl-build](skills/firecrawl-build/SKILL.md) | 在产品代码中集成 Firecrawl | 按需，会写入应用代码与依赖；先确认端点与密钥来源 |
-| [firecrawl-build-scrape](skills/firecrawl-build-scrape/SKILL.md) | 将 `/scrape` 集成进应用代码 | 页面级集成，不替代批量爬取 |
-| [firecrawl-build-search](skills/firecrawl-build-search/SKILL.md) | 将 `/search` 集成进应用代码 | 从查询出发，需要先有 URL 时接 build-scrape |
-| [firecrawl-build-interact](skills/firecrawl-build-interact/SKILL.md) | 将 interact 集成到产品代码 | 按需，不等同于直接操作网页 |
-| [firecrawl-build-onboarding](skills/firecrawl-build-onboarding/SKILL.md) | 项目 SDK / 凭据接入与端点选择 | 检查 SDK 契约支持，不自动升级、全局安装或提交密钥 |
-| [find-skills](skills/find-skills/SKILL.md) | 按关键词或支持的作者筛选发现技能 | 下载执行须授权；安装量不是安全审核，不全量覆盖定制 |
-| [yida-login](skills/yida-login/SKILL.md) | 宜搭登录态管理 | 按需，OpenYida CLI；先检查已有登录态 |
+| [firecrawl](skills/firecrawl/SKILL.md) | 选择合适的 CLI 操作，查找结构化数据提供方 | 先检查版本和命令支持的能力；MCP 是另一套接口，不能替代对 CLI 的验证 |
+| [firecrawl-scrape](skills/firecrawl-scrape/SKILL.md) | 提取已知页面，或调用已确认的数据提供方 | 选用 Firecrawl 时使用；调用提供方前，要确认接口支持、契约匹配并获得授权 |
+| [firecrawl-crawl](skills/firecrawl-crawl/SKILL.md) | 批量提取多个页面或站点内容 | 需要控制范围和额度 |
+| [firecrawl-map](skills/firecrawl-map/SKILL.md) | 查找并列出 URL | 不会因此读取每一页正文 |
+| [firecrawl-agent](skills/firecrawl-agent/SKILL.md) | 异步开展结构化研究，查询已有任务 | 等待有时限；检查最终状态、实际数据和额度，不重复提交尚未结束的任务 |
+| [firecrawl-interact](skills/firecrawl-interact/SKILL.md) | 操作云端浏览器 | 支持登录和 profile，但不会自动继承本机登录态 |
+| [firecrawl-download](skills/firecrawl-download/SKILL.md) | 把网站内容保存为本地文件 | 按需使用；实验性命令以实际 CLI 版本为准 |
+| [firecrawl-parse](skills/firecrawl-parse/SKILL.md) | 用 Firecrawl 解析文档 | 按需使用；托管模式上传前要明确确认，敏感的本地文档优先在本地处理 |
+| [firecrawl-search](skills/firecrawl-search/SKILL.md) | 搜索网页、查找数据提供方和工作流 | 按需使用 Firecrawl CLI；结果额度和反馈退款以实际接口为准 |
+| [firecrawl-monitor](skills/firecrawl-monitor/SKILL.md) | 监测已知 URL 的变化，通过 webhook/邮件告警 | 按需使用，会安排后续检查任务；目标和范围须先获得授权 |
+| [firecrawl-alexandria](skills/firecrawl-alexandria/SKILL.md) | 按契约执行工作流、调用数据提供方 | 需要 Firecrawl 团队开通该能力；不会调用被门控限制的提供方 |
+| [firecrawl-developer-index](skills/firecrawl-developer-index/SKILL.md) | 在仓库、issue、PR、README 和文档索引中检索 | 用于编程问题；结果仍要核对版本和出处 |
+| [firecrawl-research-index](skills/firecrawl-research-index/SKILL.md) | 检索论文索引，针对全文提问 | 以生物医学与 arXiv 为主，不能当成通用网页搜索 |
+| [firecrawl-build](skills/firecrawl-build/SKILL.md) | 在产品代码中集成 Firecrawl | 按需使用，会修改应用代码和依赖；先确认端点和密钥来源 |
+| [firecrawl-build-scrape](skills/firecrawl-build-scrape/SKILL.md) | 将 `/scrape` 集成进应用代码 | 用于页面级集成，不替代批量爬取 |
+| [firecrawl-build-search](skills/firecrawl-build-search/SKILL.md) | 将 `/search` 集成进应用代码 | 从查询开始；需要先有 URL 时接 build-scrape |
+| [firecrawl-build-interact](skills/firecrawl-build-interact/SKILL.md) | 将 interact 集成到产品代码 | 按需使用，不等同于直接操作网页 |
+| [firecrawl-build-onboarding](skills/firecrawl-build-onboarding/SKILL.md) | 在项目中接入 SDK / 凭据，选择端点 | 检查 SDK 是否支持相应契约；不自动升级、全局安装或提交密钥 |
+| [find-skills](skills/find-skills/SKILL.md) | 按关键词，或按支持的作者筛选条件查找技能 | 下载和执行须授权；安装量不能代替安全审核，不能全量覆盖定制内容 |
+| [yida-login](skills/yida-login/SKILL.md) | 管理宜搭登录态 | 按需使用 OpenYida CLI；先检查已有登录态 |
 
 Firecrawl 共 18 个独立入口：主技能 `firecrawl` 1 个、CLI 操作技能 7 个（scrape/crawl/map/agent/interact/download/parse）、检索与数据提供方技能 5 个（search/monitor/alexandria/developer-index/research-index）、build 集成技能 5 个（build/build-scrape/build-search/build-interact/build-onboarding）。来源为上游 `firecrawl/cli` 与 `firecrawl/skills` 两个仓库。
 
@@ -94,11 +94,11 @@ Firecrawl 共 18 个独立入口：主技能 `firecrawl` 1 个、CLI 操作技�
 
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
-| [anthropic-claude-api](skills/anthropic-claude-api/SKILL.md) | Claude API / Anthropic SDK 参考 | 仅明确的供应商 API 任务触发，不接管普通总结或其他供应商代码 |
-| [anthropic-mcp-builder](skills/anthropic-mcp-builder/SKILL.md) | MCP 服务端设计和评测 | 按语言选择运行时 / SDK |
-| [claude-mem-mem-search](skills/claude-mem-mem-search/SKILL.md) | 三层过滤检索，必要时取原始工具证据 | 第四层须实际暴露 get_tool_uses；无工具或 ID 时不伪造证据 |
-| [claude-mem-smart-explore](skills/claude-mem-smart-explore/SKILL.md) | 当前源码 AST 探索 | 需相应 MCP 工具；显式全文模式必须限制范围和预算 |
-| [claude-mem-knowledge-agent](skills/claude-mem-knowledge-agent/SKILL.md) | 专题语料库与持续问答 | 按需，需相应语料库工具，不假定所有版本均提供 |
+| [anthropic-claude-api](skills/anthropic-claude-api/SKILL.md) | Claude API / Anthropic SDK 参考 | 只在明确涉及该供应商 API 的任务中触发，不接管普通总结或其他供应商的代码 |
+| [anthropic-mcp-builder](skills/anthropic-mcp-builder/SKILL.md) | 设计、评测 MCP 服务端 | 按所用语言选择运行时 / SDK |
+| [claude-mem-mem-search](skills/claude-mem-mem-search/SKILL.md) | 分三层过滤和检索，必要时读取原始工具证据 | 使用第四层前，必须确认实际提供了 get_tool_uses；没有工具或 ID 时，不编造证据 |
+| [claude-mem-smart-explore](skills/claude-mem-smart-explore/SKILL.md) | 通过 AST 探索当前源码 | 需要相应的 MCP 工具；显式全文模式必须限制范围和预算 |
+| [claude-mem-knowledge-agent](skills/claude-mem-knowledge-agent/SKILL.md) | 建立专题语料库，持续问答 | 按需使用，需要相应的语料库工具；不能假定所有版本都有这些工具 |
 
 ## 视觉设计（6 个）
 

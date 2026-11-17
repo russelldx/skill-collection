@@ -1,21 +1,23 @@
 # Skill Collection — AI Agent 技能合集
 
-按任务选择技能，而不是全量安装。Skill 提供工作流程，MCP/CLI 提供工具；两者不能互相替代。
+请按任务选择技能，不要全量安装。Skill 提供做事的流程，MCP/CLI 提供工具，两者不能互相替代。
 
-> **核心入口：`session-handoff`** — 跨会话交接、专家团角色协作、Qoder CLI 会话内并行 agent 派发。任何跨多会话、分批推进或需要把踩坑留给后续会话的任务，默认推荐安装；如果 agent 决定不推荐它，必须在清单里写明理由，不能静默跳过。
+> **核心入口：`session-handoff`**。它用于跨会话交接、专家团角色协作，也支持在 Qoder CLI 的同一会话内派发并行 agent。任务需要跨多个会话、分批推进，或需要把踩过的坑留给后续会话时，默认推荐安装。如果 agent 决定不推荐，必须在清单里说明理由，不能直接跳过。
 
-本仓库现有 **65 个活动入口**，另有 4 个合并参考和 4 个暂停入口。活动入口包含按用户授权从上游 `firecrawl/cli`、`firecrawl/skills` 新增的 8 个检索与集成入口，以及本地维护的 `docx-meta` 元数据清理入口和 `shuorenhua` 中文编辑入口。检查范围为文档、结构和部分脚本回归，不代表所有技能在所有平台上运行通过；新增的 8 个 Firecrawl 入口与 `docx-meta` 的验证范围见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
+本仓库现有 **65 个活动入口**，另有 4 个已合并为参考资料的入口和 4 个暂停入口。活动入口中，8 个检索与集成入口是在用户授权后从上游 `firecrawl/cli`、`firecrawl/skills` 新增的；`docx-meta` 元数据清理入口和 `shuorenhua` 中文编辑入口由本地维护。
+
+目前检查了文档、目录结构，并对部分脚本做了回归测试。这不代表所有技能都已在所有平台上运行通过。新增的 8 个 Firecrawl 入口与 `docx-meta` 具体验证了什么，见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
 ## 快速开始
 
-将本仓库地址或 `README.md` + [INDEX.md](./INDEX.md) 交给你的 agent，并要求它：
+把本仓库地址，或者 `README.md` 和 [INDEX.md](./INDEX.md)，交给你的 agent，要求它按下面的步骤处理：
 
-1. **先给出完整清单，再做减法。** 按 `INDEX.md` 的分类逐类过一遍 65 个活动入口，每个入口一行，标出“推荐安装 / 暂不推荐 / 不适用”和一句理由；不允许只挑几个就结束，也不允许静默跳过整类。
-2. **默认推荐 `session-handoff`。** 多会话任务、需要交接文档、使用专家团或并行 agent 的任务，必须把它列为首选；跳过时必须在清单中写明“为什么不装”。它是本仓库的核心入口，不是可选装饰。
-3. 根据任务从 `skills/` 选择需要的技能，不扫描归档作为可安装技能；不把合并参考或暂停入口当成可运行技能。
-4. 检查目标环境的运行时、工具、子代理能力及已安装版本。
-5. 核对所选目录的来源和许可；说明待安装目录和依赖，得到授权后安装；目标目录已存在时先比较，不覆盖。
-6. 单独确认 MCP、凭据、全局依赖和 hooks 的配置，不能把安装技能视为授权这些操作。
+1. **先列完整清单，再挑选。** 按 `INDEX.md` 的分类，逐类查看 65 个活动入口。每个入口写一行，标出“推荐安装 / 暂不推荐 / 不适用”，并说明一句理由。不能只挑几个，也不能不作说明就跳过整类。
+2. **默认推荐 `session-handoff`。** 只要任务涉及多个会话、交接文档、专家团或并行 agent，就必须把它列为首选。如果不装，必须在清单里说明原因。这是本仓库的核心入口，不能当成可有可无的装饰。
+3. 根据任务从 `skills/` 选择技能，不要到归档中查找可安装技能，也不要把合并后的参考资料或暂停入口当成可运行技能。
+4. 检查目标环境有哪些运行时、工具和子代理能力，以及已经安装的版本。
+5. 核对所选目录的来源和许可，说明要安装的目录及其依赖，获得授权后再安装。如果目标目录已经存在，先比较，不要覆盖。
+6. MCP、凭据、全局依赖和 hooks 的配置要单独确认。允许安装技能，不等于允许这些配置操作。
 
 手动安装示例（Git Bash / POSIX shell；先确认目标技能不存在）：
 
@@ -44,7 +46,9 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 
 暂停项：`superpowers-using-superpowers`、`superpowers-finishing-a-development-branch`、`pua-pua`、`pua-pua-loop`。归档保留来源和代码，不代表缺陷已全部修复或已获重新启用授权。
 
-`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出不进入同步基线的名称：4 个暂停入口、4 个已合并来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`），以及按作者要求**不入库**的 `daibi`、`tuomin`。排除是双向的：工具既不把这些目录从本机回流到仓库，也不把仓库改动导出到本机。`check` 输出里的 `excluded-or-inactive` 还会出现两类根本没有仓库副本的条目：宿主内置的 `deep-research`，以及只作为本地 skill 存在、仓库与 GitHub 都不发布的 `skill-update`（由 `.gitignore` 的 `skills/skill-update/` 守卫路径兜底）。这些都是预期状态，不是漏同步，不要为了消掉提示行把它们 import 进仓库。
+`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出了不记录同步基线的技能：4 个暂停入口、4 个已经合并的来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`），以及作者要求**不入库**的 `daibi`、`tuomin`。这些目录在两个方向上都不参与同步：不会从本机导入仓库，也不会从仓库导出到本机。
+
+`check` 输出的 `excluded-or-inactive` 中，还会出现两类没有仓库副本的条目。一类是宿主内置的 `deep-research`；另一类是只保存在本机、不在仓库或 GitHub 发布的 `skill-update`，`.gitignore` 中的 `skills/skill-update/` 路径也会阻止它被加入仓库。这些提示都正常，不表示漏了同步，不要为了消掉提示把它们 import 进仓库。
 
 ## 按场景选择
 
@@ -80,9 +84,9 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 | snipaste-mcp（仓库自带 MCP） | Node.js 18+ 与 Snipaste 2.x，便携版可用；窗口安全截图与 `snip_view` 仅支持 Windows（`snip_view` 另需 Edge 或 Chrome），截桌面须显式 `allow_desktop`；阴影、文字提取属 PRO 功能，免费版静默不产出 |
 | hooks / 子代理 | 宿主支持和权限需分别确认；安装技能不会自动授权注册 hooks |
 
-根目录 [.mcp.json](./.mcp.json) 提供 Firecrawl 和 Chrome DevTools 的项目配置示例。文件被客户端识别不等于服务安装、授权、启动或实际操作成功；其他客户端的配置格式和环境变量展开方式需按其文档适配。仓库自带的 [mcps/snipaste-mcp](./mcps/snipaste-mcp/README.md) 是唯一需要本地 `npm ci` 的 MCP，不包含在 `.mcp.json` 示例中，也不属于 65 个活动 skill 入口。
+根目录的 [.mcp.json](./.mcp.json) 提供了 Firecrawl 和 Chrome DevTools 的项目配置示例。客户端能识别这个文件，不代表服务已经安装、获得授权、成功启动或实际操作成功。换用其他客户端时，需要按该客户端的文档调整配置格式和环境变量的展开方式。仓库自带的 [mcps/snipaste-mcp](./mcps/snipaste-mcp/README.md) 是唯一需要在本地执行 `npm ci` 的 MCP；它不在 `.mcp.json` 示例中，也不计入 65 个活动 skill 入口。
 
-详细配置与分层验证见 [MCP-SETUP.md](./MCP-SETUP.md)。本仓库不含可直接套用的个人 claude-mem 路径或任何 API Key。
+具体配置步骤，以及每一层该怎样验证，见 [MCP-SETUP.md](./MCP-SETUP.md)。本仓库没有可直接套用的个人 claude-mem 路径，也不包含任何 API Key。
 
 ## 验证与兼容性
 
@@ -92,20 +96,20 @@ python validate-skills.py
 bash validate-skills.sh
 ```
 
-验证器检查活动入口、索引覆盖、配置及实际本地 Markdown 链接，不执行登录、上传、hooks 或真实文档修改。具体回归与未验证能力见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
+验证器会检查活动入口、索引是否完整覆盖、配置，以及实际的本地 Markdown 链接。它不会执行登录、上传、hooks，也不会修改真实文档。具体做过哪些回归测试、还有哪些能力未验证，见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
-仓库维护者若同时在本机安装着同名技能，可用 `python sync-skills.py check` 只读对比两侧哈希；写入必须逐文件审阅、经 `approve` 记录当时双侧哈希后由显式 `apply` 执行（导出要求仓库侧已提交），提交前的 pre-commit 只做只读校验，不会自动复制、暂存或删除内容。
+如果仓库维护者也在本机安装了同名技能，可以用 `python sync-skills.py check` 比较两侧的哈希值；这个操作只读，不会改文件。需要写入时，必须逐文件审阅，通过 `approve` 记录当时两侧的哈希，再明确执行 `apply`（导出要求仓库侧已提交）。提交前的 pre-commit 也只做只读校验，不会自动复制、暂存或删除内容。
 
-不同 agent 对工具名、MCP、hooks、子代理和 shell 的支持不同。纯文本指令也可能引用宿主特有能力，不能仅凭 `SKILL.md` 存在承诺跨平台完全兼容。
+不同 agent 对工具名、MCP、hooks、子代理和 shell 的支持并不相同。即使是纯文本指令，也可能引用某个宿主才有的能力。因此，不能因为存在 `SKILL.md` 就承诺跨平台完全兼容。
 
 ## 额外内容与来源
 
 `daibi-template/` 是个人文风技能制作指南，不计入上述技能数量。
 
-各目录保留原有来源与许可证文件；本地修改可能与上游不同。来源包括 Anthropic、Firecrawl、Superpowers、claude-mem、PUA、社区和自创技能（如 `session-handoff`、`course-assignment`、`docx-meta`）。没有明确许可证的内容，不应推定获得任意再分发授权。
+各目录保留了原有的来源说明和许可证文件，本地修改后的内容可能与上游不同。来源包括 Anthropic、Firecrawl、Superpowers、claude-mem、PUA、社区，以及自创技能（如 `session-handoff`、`course-assignment`、`docx-meta`）。内容没有明确的许可证时，不能默认认为可以任意再分发。
 
-**公开发布阻塞**：`anthropic-docx`、`anthropic-pdf`、`anthropic-pptx`、`anthropic-xlsx` 的现有 `LICENSE.txt` 明确限制复制、衍生和再分发；本地技术审查与修复不代表取得许可。未确认适用权利前，不应公开分发这些目录或宣称整个合集可自由复制。其他仅有来源或许可名称、缺少具体条款的目录也需分别核验；不删除或替换原许可来绕过限制。
+**公开发布阻塞**：`anthropic-docx`、`anthropic-pdf`、`anthropic-pptx`、`anthropic-xlsx` 现有的 `LICENSE.txt` 明确限制复制、衍生和再分发。在本地做过技术审查和修复，不代表已经获得许可。确认适用的权利之前，不应公开分发这些目录，也不应宣称整个合集可以自由复制。其他目录如果只写了来源或许可名称、没有具体条款，也要分别核验。不能通过删除或替换原许可来绕过限制。
 
 ## 贡献
 
-新增活动入口须有 `SKILL.md`、更新 `INDEX.md` 并通过结构验证。涉及可执行脚本时补充隔离回归；涉及上传、凭据、全局配置或 hooks 时明确授权边界。不要把“静态检查通过”写成“所有功能可用”。
+新增活动入口时，必须提供 `SKILL.md`、更新 `INDEX.md`，并通过结构验证。如果包含可执行脚本，还要补充隔离回归测试；如果涉及上传、凭据、全局配置或 hooks，要说明哪些操作需要授权，以及允许操作的范围。不要把“静态检查通过”写成“所有功能可用”。
