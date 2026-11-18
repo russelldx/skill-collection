@@ -85,8 +85,10 @@ Firecrawl 共 18 个独立入口：主技能 `firecrawl` 1 个、CLI 操作技�
 | [anthropic-doc-coauthoring](skills/anthropic-doc-coauthoring/SKILL.md) | 共创文档与读者测试 | 不等于文件格式转换 |
 | [anthropic-internal-comms](skills/anthropic-internal-comms/SKILL.md) | 组织沟通模板 | 按需，保留独有模板，不强制公司口吻 |
 | [content-research-writer](skills/content-research-writer/SKILL.md) | 研究、引用和写作迭代 | 按需，事实须有来源 |
-| [shuorenhua](skills/shuorenhua/SKILL.md) | 中文顺句、信息保全与简短改动摘要 | MIT 上游的本地定制；不以检测分数验收；全局规则安装另需授权 |
+| [shuorenhua](skills/shuorenhua/SKILL.md) | 所有面向用户的中文回复自然表达、保留信息；普通回复不附改动摘要 | 默认推荐与全局规则一起安装；MIT 上游的本地定制，不以检测分数验收；全局写入需单独授权并验证加载 |
 | [session-handoff](skills/session-handoff/SKILL.md) | 可接续的交接状态文件（核心入口） | 创建交接体系、改 AGENTS/.gitignore 与全局 hooks 安装须分别授权 |
+
+`shuorenhua + 全局规则` 是中文沟通的默认推荐组合，不限于写作任务。安装时主动说明全局配置的目标位置和影响范围，单独取得授权后写入并验证实际加载；未配置或未验证时明确说明，不能只安装 skill 就宣称全局生效。普通回复不附改动摘要，用户要求改写已有文字且确有改动时才默认附上；用户只要正文则省略。具体步骤见 [README](README.md#中文回复的全局规则安装时必查)。
 
 `session-handoff` 是本仓库的核心入口：任何跨会话、分批推进或需要把踩坑留给后续会话的任务，默认推荐安装；跳过时应在推荐清单里写明理由。
 
