@@ -52,10 +52,10 @@ class HandoffTests(unittest.TestCase):
         return {str(p.relative_to(self.root)): p.read_bytes()
                 for p in self.root.rglob('*') if p.is_file()}
 
-    def task(self, ready=True):
+    def task(self):
         self.state['tasks'] = [{
             'id': 'T1', 'title': '第一批', 'status': 'done',
-            'verified': True, 'archiveReady': ready, 'openItems': [],
+            'verified': True, 'openItems': [],
             'evidence': ['python test.py: PASS'], 'summary': '已核验第一批',
         }]
         self.body = ('## 1、2026-11-17 会话：第一批\n\n**task**: T1\n'
@@ -186,9 +186,9 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(preview['sections'], [1])
         self.assertEqual(before, self.snapshot())
 
-    def test_archive_requires_closed_verified_and_ready(self):
+    def test_archive_requires_closed_verified_and_no_open_items(self):
         for key, value in [('status', 'in-progress'), ('verified', False),
-                           ('archiveReady', False), ('evidence', []), ('openItems', ['待验收'])]:
+                           ('evidence', []), ('summary', ''), ('openItems', ['待验收'])]:
             with self.subTest(key=key):
                 self.task()
                 self.state['tasks'][0][key] = value
@@ -458,6 +458,96 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertNotIn('Traceback', p.stderr)
 
+    def test_default_context_budget_rejects_oversized_required_content(self):
+        self.state['constraints'] = ['必须保留' * 1100]
+        self.write_doc()
+        self.refresh()
+        p = self.run_cli('context')
+        self.assertEqual(p.returncode, 2)
+        self.assertEqual(p.stdout, '')
+        self.assertIn('budget', p.stderr)
+        self.run_cli('context', '--max-bytes', 24000, ok=0)
+
+    def test_default_optional_budgets_bound_recent_and_search(self):
+        self.refresh()
+        records = self.write_recent(1)
+        records[0]['messages'][0]['content'] = '大' * 2200
+        (self.root / 'RECENT.jsonl').write_text(json.dumps(records[0]), encoding='utf-8')
+        packet = json.loads(self.run_cli('context', '--recent', ok=0).stdout)
+        self.assertEqual(packet['recent'], [])
+        self.assertEqual(packet['omittedRecent'], 1)
+        self.body = ''.join('## %d、证据\nNEEDLE %s\n' % (i, '数据' * 180) for i in range(1, 8))
+        self.write_doc()
+        self.refresh()
+        packet = json.loads(self.run_cli('context', '--query', 'NEEDLE', ok=0).stdout)
+        self.assertLessEqual(len(json.dumps(packet['retrieved'], ensure_ascii=False, indent=2).encode()) + 1, 3000)
+        p = self.run_cli('search', 'NEEDLE', '-k', 20, ok=0)
+        self.assertLessEqual(len(p.stdout.encode()), 3000)
+        self.assertGreater(json.loads(p.stdout)['omittedHits'], 0)
+
+    def test_feature_directories_keep_state_archives_indexes_and_locks_separate(self):
+        parent = self.root
+        roots = [parent / 'feature-a', parent / 'feature-b']
+        snapshots = {}
+        for root in roots:
+            root.mkdir()
+            self.root = root
+            self.task()
+            self.state['goal'] = root.name
+            self.body += '\n' + root.name + '-private-evidence\n'
+            self.write_doc()
+            self.refresh()
+            self.run_cli('index', ok=0)
+            snapshots[root] = self.snapshot()
+        self.root = roots[0]
+        (roots[1] / '.handoff.lock').write_text('other-session', encoding='utf-8')
+        self.run_cli('archive', 'T1', '--apply', ok=0)
+        self.run_cli('index', ok=0)
+        result = self.run_cli('context', '--query', 'private-evidence', ok=0)
+        self.assertIn('feature-a-private-evidence', result.stdout)
+        self.assertNotIn('feature-b', result.stdout)
+        for path, data in snapshots[roots[1]].items():
+            self.assertEqual((roots[1] / path).read_bytes(), data)
+        self.assertEqual((roots[1] / '.handoff.lock').read_text(), 'other-session')
+        (roots[1] / '.handoff.lock').unlink()
+        archive_a = (roots[0] / 'archive/T1.md').read_bytes()
+        self.root = roots[1]
+        self.run_cli('archive', 'T1', '--apply', ok=0)
+        self.assertEqual((roots[0] / 'archive/T1.md').read_bytes(), archive_a)
+        self.assertTrue((roots[1] / 'archive/T1.md').is_file())
+        self.root = parent
+        packet = json.loads(self.run_cli('status', '--max-depth', 1, '--format', 'json', ok=0).stdout)
+        self.assertEqual({str(Path(row['path']).parent) for row in packet['sessions']}, {str(r) for r in roots})
+
+    def test_status_is_bounded_and_table_locates_feature_directories(self):
+        self.refresh()
+        data = (self.root / 'STATE.json').read_bytes()
+        for i in range(25):
+            directory = self.root / ('feature-%02d' % i)
+            directory.mkdir()
+            (directory / 'STATE.json').write_bytes(data)
+        p = self.run_cli('status', '--max-depth', 1, '--format', 'json', ok=0)
+        packet = json.loads(p.stdout)
+        self.assertEqual(packet['count'], 26)
+        self.assertEqual(len(packet['sessions']), 20)
+        self.assertEqual(packet['omitted'], 6)
+        table = self.run_cli('status', '--limit', 2, ok=0).stdout
+        self.assertIn('feature-00', table)
+        self.assertNotIn('feature-24', table)
+        for args in [('--limit', 0), ('--limit', 201), ('--max-depth', -1)]:
+            self.assertEqual(self.run_cli('status', *args).returncode, 2)
+
+    def test_sibling_isolation_is_not_read_by_parent_status(self):
+        self.refresh()
+        directory = self.root / 'protected'
+        directory.mkdir()
+        (directory / 'TEAM.md').write_text('- isolation: on\n- main-role: owner\n', encoding='utf-8')
+        (directory / 'STATE.json').write_text('{"title": "DO_NOT_LOAD"}', encoding='utf-8')
+        p = self.run_cli('status', '--format', 'json')
+        self.assertEqual(p.returncode, 1)
+        self.assertNotIn('DO_NOT_LOAD', p.stdout)
+        self.assertEqual(json.loads(p.stdout)['count'], 1)
+
     def test_init_produces_usable_current_state(self):
         new = self.root / 'new'
         p = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(SCRIPT),
@@ -466,6 +556,102 @@ class HandoffTests(unittest.TestCase):
         self.root = new
         self.run_cli('validate', ok=0)
         self.run_cli('context', ok=0)
+
+
+class CoordTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.coord = Path(self.tmp.name) / '_coord'
+        self.coord.mkdir()
+
+    def run_cli(self, command, *args, ok=None):
+        p = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(SCRIPT),
+                            command, str(self.coord), *map(str, args)],
+                           capture_output=True, encoding='utf-8')
+        if ok is not None:
+            self.assertEqual(p.returncode, ok, p.stdout + p.stderr)
+        return p
+
+    def test_claim_non_overlapping_succeeds(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/a.ts', ok=0)
+        self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/b.ts', ok=0)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['claims']['s1']['status'], 'active')
+        self.assertEqual(data['claims']['s2']['status'], 'active')
+        self.assertEqual(data['conflicts'], {})
+
+    def test_claim_overlap_creates_conflict(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/common.ts', ok=0)
+        p = self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/common.ts', ok=0)
+        result = json.loads(p.stdout)
+        self.assertIn('conflict', result)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(data['conflicts']), 1)
+        conflict = list(data['conflicts'].values())[0]
+        self.assertEqual(conflict['state'], 'open')
+        self.assertIn('s1', conflict['participants'])
+        self.assertIn('s2', conflict['participants'])
+
+    def test_release_frees_files_for_new_claim(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/a.ts', ok=0)
+        self.run_cli('release', '--session', 's1', ok=0)
+        self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/a.ts', ok=0)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['conflicts'], {})
+        self.assertEqual(data['claims']['s2']['status'], 'active')
+
+    def test_handoff_requires_all_participants_before_ready(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/c.ts', ok=0)
+        p = self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/c.ts', ok=0)
+        cid = json.loads(p.stdout)['conflict']
+        self.run_cli('handoff', '--conflict', cid, '--session', 's1', '--coordinator', ok=0)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['conflicts'][cid]['state'], 'open')
+        self.run_cli('handoff', '--conflict', cid, '--session', 's2', ok=0)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['conflicts'][cid]['state'], 'ready')
+        self.assertEqual(data['conflicts'][cid]['coordinator'], 's1')
+
+    def test_only_one_coordinator_per_conflict(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/c.ts', ok=0)
+        p = self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/c.ts', ok=0)
+        cid = json.loads(p.stdout)['conflict']
+        self.run_cli('handoff', '--conflict', cid, '--session', 's1', '--coordinator', ok=0)
+        p = self.run_cli('handoff', '--conflict', cid, '--session', 's2', '--coordinator')
+        self.assertNotEqual(p.returncode, 0)
+
+    def test_verify_closes_only_when_all_done(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/c.ts', ok=0)
+        p = self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/c.ts', ok=0)
+        cid = json.loads(p.stdout)['conflict']
+        self.run_cli('handoff', '--conflict', cid, '--session', 's1', '--coordinator', ok=0)
+        self.run_cli('handoff', '--conflict', cid, '--session', 's2', ok=0)
+        self.run_cli('verify', '--conflict', cid, '--session', 's1', ok=0)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertNotEqual(data['conflicts'][cid]['state'], 'closed')
+        self.run_cli('verify', '--conflict', cid, '--session', 's2', ok=0)
+        data = json.loads((self.coord / 'COORD.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['conflicts'][cid]['state'], 'closed')
+        self.assertEqual(data['claims']['s1']['status'], 'released')
+        self.assertEqual(data['claims']['s2']['status'], 'released')
+
+    def test_coord_query_filters_by_session(self):
+        self.run_cli('claim', '--session', 's1', '--feature', 'login', '--files', 'src/a.ts', ok=0)
+        self.run_cli('claim', '--session', 's2', '--feature', 'export', '--files', 'src/b.ts', ok=0)
+        p = self.run_cli('coord', '--session', 's1', ok=0)
+        result = json.loads(p.stdout)
+        self.assertIn('s1', result['claims'])
+        self.assertNotIn('s2', result['claims'])
+
+    def test_coord_query_is_bounded(self):
+        for i in range(30):
+            self.run_cli('claim', '--session', 's%d' % i, '--feature', 'f%d' % i,
+                         '--files', 'src/f%d.ts' % i, ok=0)
+        p = self.run_cli('coord', '--max-bytes', 2000, ok=0)
+        self.assertLessEqual(len(p.stdout.encode('utf-8')), 2000)
+        result = json.loads(p.stdout)
+        self.assertIn('omitted', result)
 
 
 if __name__ == '__main__':

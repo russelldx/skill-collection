@@ -28,7 +28,6 @@
       "title": "<第一批>",
       "status": "in-progress",
       "verified": false,
-      "archiveReady": false,
       "openItems": ["待核验"],
       "evidence": [],
       "summary": "<本批目标>"

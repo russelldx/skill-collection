@@ -259,9 +259,8 @@ def validate_current(state):
         if task['id'] in ids or task.get('status') not in VALID_STATUS:
             raise ValueError('任务 id 重复或 status 非法')
         ids.add(task['id'])
-        for key in ('verified', 'archiveReady'):
-            if type(task.get(key)) is not bool:
-                raise ValueError('任务需要布尔字段 ' + key)
+        if type(task.get('verified')) is not bool:
+            raise ValueError('任务需要布尔字段 verified')
         for key in ('evidence', 'openItems'):
             if not isinstance(task.get(key), list) or any(not isinstance(x, str) for x in task[key]):
                 raise ValueError('任务需要字符串列表 ' + key)
@@ -386,7 +385,7 @@ def cmd_refresh(a):
 
 def archive_ready(task):
     return (task.get('status') == 'done' and task.get('verified') is True
-            and task.get('archiveReady') is True and not task.get('openItems')
+            and not task.get('openItems')
             and bool(task.get('evidence')) and all(x.strip() for x in task['evidence'])
             and bool(task.get('summary', '').strip()))
 
@@ -403,7 +402,7 @@ def cmd_archive(a):
             return 0
         raise ValueError('当前态无此任务')
     if not archive_ready(task):
-        raise ValueError('任务未满足 done / verified / archiveReady / evidence / openItems 归档条件')
+        raise ValueError('任务未满足 done / verified / evidence / summary / openItems 归档条件')
     if any(isinstance(x, dict) and x.get('task') == a.task and not x.get('done') for x in state['nextActions']):
         raise ValueError('此任务仍有未完成 nextActions')
     all_sections = sections_from_text(path, text)
@@ -870,11 +869,14 @@ def cmd_status(a):
     rows.sort(key=lambda r: (STATUS_PRIORITY.get(r['status'], 9),
                              -(r['age_days'] if r['age_days'] is not None else 10**6),
                              r['session']))
+    visible = rows[:a.limit]
+    omitted = len(rows) - len(visible)
     if a.format == 'json':
-        print(json.dumps({'root': root, 'count': len(rows),
-                          'errors': [{'path': p, 'error': e} for p, e in errs],
-                          'sessions': rows}, ensure_ascii=False, indent=2))
-        return 0
+        print(json.dumps({'root': root, 'count': len(rows), 'omitted': omitted,
+                          'errors': [{'path': p, 'error': e} for p, e in errs[:a.limit]],
+                          'omittedErrors': max(0, len(errs) - a.limit),
+                          'sessions': visible}, ensure_ascii=False, indent=2))
+        return 1 if errs else 0
     by = Counter(r['status'] for r in rows)
     other = sum(v for k, v in by.items() if k not in ('in-progress', 'blocked', 'done'))
     print('共 %d 个任务  in-progress:%d  blocked:%d  done:%d  其他:%d  root=%s' % (
@@ -883,21 +885,25 @@ def cmd_status(a):
     if not rows:
         print('（无匹配任务）')
     else:
-        print('%-11s %-11s %-5s %-8s %-24s %s' % ('STATUS', 'UPDATED', 'AGE', 'ACT/BLK', 'SESSION', 'TITLE'))
+        print('%-11s %-11s %-5s %-8s %-24s %s' % ('STATUS', 'UPDATED', 'AGE', 'ACT/BLK', 'TITLE', 'DIRECTORY'))
         print('-' * 106)
-        for r in rows:
+        for r in visible:
             age = '-' if r['age_days'] is None else ('%dd' % r['age_days'])
             print('%-11s %-11s %-5s %-8s %-24s %s' % (
                 r['status'], (r['updatedAt'] or '')[:10] or '-', age,
                 '%d/%d b=%d' % (r['act_done'], r['act_total'], r['blockers']),
-                r['session'][:24], r['title'][:44]))
+                r['title'][:44], os.path.relpath(os.path.dirname(r['path']), root)))
+    if omitted:
+        print('省略 %d 个任务；缩小目录/状态范围，或显式增加 --limit。' % omitted)
     if a.stale_days is not None and rows:
         print()
         print('（仅列 updatedAt ≥ %d 天前的）' % a.stale_days)
     if errs:
         print()
-        for p, e in errs:
+        for p, e in errs[:a.limit]:
             print('ERR %s: %s' % (p, e))
+        if len(errs) > a.limit:
+            print('另有 %d 个错误未展示；缩小目录范围后核查。' % (len(errs) - a.limit))
     return 1 if errs else 0
 
 # ---------- install-hooks：把 skill/hooks/*.sh 部署到 ~/.qoder/hooks ----------
@@ -938,6 +944,142 @@ def cmd_install_hooks(a):
     print('done.  errors=%d' % err)
     return 1 if err else 0
 
+# ---------- cross-window coordination ----------
+COORD_VERSION = 1
+
+def read_coord(root):
+    p = scoped_path(root, 'COORD.json')
+    if not p.exists():
+        return {'version': COORD_VERSION, 'claims': {}, 'conflicts': {}}
+    return json.loads(read_text(p))
+
+def write_coord(root, data):
+    p = scoped_path(root, 'COORD.json')
+    old = p.read_bytes() if p.exists() else None
+    atomic_replace(p, json_text(data), old)
+
+def next_conflict_id(conflicts):
+    n = 1
+    while 'C%03d' % n in conflicts:
+        n += 1
+    return 'C%03d' % n
+
+def cmd_claim(a):
+    files = [f.strip() for f in a.files.split(',') if f.strip()]
+    if not files:
+        raise ValueError('--files 不能为空')
+    with writer_lock(a.dir):
+        data = read_coord(a.dir)
+        active = {s: c for s, c in data['claims'].items() if c['status'] == 'active'}
+        overlap_sessions = set()
+        for s, c in active.items():
+            if s == a.session:
+                continue
+            if set(c['files']) & set(files):
+                overlap_sessions.add(s)
+        data['claims'][a.session] = {
+            'feature': a.feature, 'files': files, 'status': 'active',
+            'claimedAt': time.strftime('%Y-%m-%dT%H:%M:%S'),
+        }
+        result = {'session': a.session, 'files': files}
+        if overlap_sessions:
+            participants = sorted(overlap_sessions | {a.session})
+            cid = next_conflict_id(data['conflicts'])
+            overlap_files = sorted(set(files) & set().union(*(set(active[s]['files']) for s in overlap_sessions)))
+            data['conflicts'][cid] = {
+                'files': overlap_files, 'participants': participants,
+                'coordinator': None, 'state': 'open', 'handoffs': {},
+                'verifications': {}, 'result': 'conflicts/%s.md' % cid,
+                'createdAt': time.strftime('%Y-%m-%dT%H:%M:%S'),
+            }
+            result['conflict'] = cid
+            result['overlapFiles'] = overlap_files
+            result['participants'] = participants
+        write_coord(a.dir, data)
+    print(json_text(result), end='')
+    return 0
+
+def cmd_release(a):
+    with writer_lock(a.dir):
+        data = read_coord(a.dir)
+        if a.session not in data['claims']:
+            raise ValueError('无此会话的认领记录')
+        data['claims'][a.session]['status'] = 'released'
+        write_coord(a.dir, data)
+    print(json_text({'released': a.session}), end='')
+    return 0
+
+def cmd_handoff(a):
+    with writer_lock(a.dir):
+        data = read_coord(a.dir)
+        conflict = data['conflicts'].get(a.conflict)
+        if not conflict:
+            raise ValueError('无此冲突')
+        if a.session not in conflict['participants']:
+            raise ValueError('此会话不是冲突参与方')
+        if conflict['state'] == 'closed':
+            raise ValueError('冲突已关闭')
+        if a.coordinator:
+            if conflict['coordinator'] and conflict['coordinator'] != a.session:
+                raise ValueError('协调者已指定为 ' + conflict['coordinator'])
+            conflict['coordinator'] = a.session
+        conflict['handoffs'][a.session] = time.strftime('%Y-%m-%dT%H:%M:%S')
+        if all(s in conflict['handoffs'] for s in conflict['participants']):
+            conflict['state'] = 'ready'
+        write_coord(a.dir, data)
+    print(json_text({'conflict': a.conflict, 'state': conflict['state'],
+                     'coordinator': conflict['coordinator']}), end='')
+    return 0
+
+def cmd_verify(a):
+    with writer_lock(a.dir):
+        data = read_coord(a.dir)
+        conflict = data['conflicts'].get(a.conflict)
+        if not conflict:
+            raise ValueError('无此冲突')
+        if a.session not in conflict['participants']:
+            raise ValueError('此会话不是冲突参与方')
+        if conflict['state'] != 'ready':
+            raise ValueError('冲突尚未完成移交，不能验收')
+        conflict['verifications'][a.session] = time.strftime('%Y-%m-%dT%H:%M:%S')
+        if all(s in conflict['verifications'] for s in conflict['participants']):
+            conflict['state'] = 'closed'
+            conflict['closedAt'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+            for s in conflict['participants']:
+                if s in data['claims']:
+                    data['claims'][s]['status'] = 'released'
+        write_coord(a.dir, data)
+    print(json_text({'conflict': a.conflict, 'state': conflict['state']}), end='')
+    return 0
+
+def cmd_coord(a):
+    data = read_coord(a.dir)
+    claims = data['claims']
+    conflicts = data['conflicts']
+    if a.session:
+        claims = {s: c for s, c in claims.items() if s == a.session}
+        conflicts = {k: v for k, v in conflicts.items() if a.session in v['participants']}
+    if a.files:
+        wanted = set(f.strip() for f in a.files.split(',') if f.strip())
+        claims = {s: c for s, c in claims.items() if set(c['files']) & wanted}
+        conflicts = {k: v for k, v in conflicts.items() if set(v['files']) & wanted}
+    packet = {'claims': claims, 'conflicts': conflicts, 'omitted': 0}
+    output = json_text(packet)
+    if len(output.encode('utf-8')) > a.max_bytes:
+        keys = list(claims)
+        while keys and len(json_text(packet).encode('utf-8')) > a.max_bytes:
+            del packet['claims'][keys.pop()]
+            packet['omitted'] += 1
+        ckeys = list(conflicts)
+        while ckeys and len(json_text(packet).encode('utf-8')) > a.max_bytes:
+            del packet['conflicts'][ckeys.pop()]
+            packet['omitted'] += 1
+        output = json_text(packet)
+    if len(output.encode('utf-8')) > a.max_bytes:
+        raise ValueError('coord metadata exceeds budget')
+    print(output, end='')
+    return 0
+
 def main():
     ap = argparse.ArgumentParser(prog='handoff.py', description='session-handoff 读模型/分层/本地检索（离线）')
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -945,26 +1087,42 @@ def main():
     p = sub.add_parser('validate'); p.add_argument('dir'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--fix-hint', action='store_true'); p.set_defaults(func=cmd_validate)
     p = sub.add_parser('index'); p.add_argument('root'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--out', help='输出文件名/路径，默认 INDEX.md'); p.add_argument('--max-bytes', type=int, default=20480); p.add_argument('--force', action='store_true', help='允许覆盖非自动生成的索引'); p.set_defaults(func=cmd_index)
     p = sub.add_parser('search'); p.add_argument('dir'); p.add_argument('query'); p.add_argument('-k', type=int, default=3); p.add_argument('--doc', help='主文档名/路径；默认自动识别')
-    p.add_argument('--task'); p.add_argument('--max-bytes', type=int, default=6000); p.set_defaults(func=cmd_search)
+    p.add_argument('--task'); p.add_argument('--max-bytes', type=int, default=3000); p.set_defaults(func=cmd_search)
     p = sub.add_parser('refresh', help='从 Markdown 当前态派生 STATE.json 和 §0（写文件）')
     p.add_argument('dir'); p.add_argument('--doc'); p.set_defaults(func=cmd_refresh)
     p = sub.add_parser('archive', help='预览已闭环任务的原文归档；--apply 才写入')
     p.add_argument('dir'); p.add_argument('task'); p.add_argument('--doc'); p.add_argument('--apply', action='store_true'); p.set_defaults(func=cmd_archive)
     p = sub.add_parser('context', help='只读输出有界恢复包，不读取宿主私有日志')
     p.add_argument('dir'); p.add_argument('--doc'); p.add_argument('--query'); p.add_argument('--task')
-    p.add_argument('--max-bytes', type=int, default=24000)
+    p.add_argument('--max-bytes', type=int, default=12000)
     p.add_argument('--recent', action='store_true'); p.add_argument('--turns', type=int, default=4)
-    p.add_argument('--after-id'); p.add_argument('--recent-bytes', type=int, default=12000)
-    p.add_argument('--retrieval-bytes', type=int, default=6000); p.set_defaults(func=cmd_context)
+    p.add_argument('--after-id'); p.add_argument('--recent-bytes', type=int, default=6000)
+    p.add_argument('--retrieval-bytes', type=int, default=3000); p.set_defaults(func=cmd_context)
     p = sub.add_parser('status', help='跨会话总览：遍历 root 下 STATE.json 出当前态大表')
     p.add_argument('root', nargs='?', default='.'); p.add_argument('--status', help='逗号分隔过滤，如 in-progress,blocked')
     p.add_argument('--stale-days', type=int, help='只显示 updatedAt ≥ N 天前的'); p.add_argument('--max-depth', type=int, default=4)
+    p.add_argument('--limit', type=int, default=20, help='最多显示任务/错误条数，默认20')
     p.add_argument('--format', choices=['table', 'json'], default='table'); p.set_defaults(func=cmd_status)
     p = sub.add_parser('install-hooks', help='把 skill/hooks/*.sh 部署到 ~/.qoder/hooks（备份 + sha256 校验）')
     p.add_argument('--source', help='默认取脚本同级的 ../hooks'); p.add_argument('--target', default='~/.qoder/hooks')
     p.set_defaults(func=cmd_install_hooks)
+    p = sub.add_parser('claim', help='认领本批要修改的文件；重叠时创建冲突')
+    p.add_argument('dir'); p.add_argument('--session', required=True); p.add_argument('--feature', required=True)
+    p.add_argument('--files', required=True, help='逗号分隔的文件路径'); p.set_defaults(func=cmd_claim)
+    p = sub.add_parser('release', help='释放本会话的文件认领')
+    p.add_argument('dir'); p.add_argument('--session', required=True); p.set_defaults(func=cmd_release)
+    p = sub.add_parser('handoff', help='确认已停止写入并移交共享文件；可指定协调者')
+    p.add_argument('dir'); p.add_argument('--conflict', required=True); p.add_argument('--session', required=True)
+    p.add_argument('--coordinator', action='store_true', help='指定本会话为协调者'); p.set_defaults(func=cmd_handoff)
+    p = sub.add_parser('verify', help='记录本会话对共享修改的验收；全部通过后关闭冲突')
+    p.add_argument('dir'); p.add_argument('--conflict', required=True); p.add_argument('--session', required=True)
+    p.set_defaults(func=cmd_verify)
+    p = sub.add_parser('coord', help='查询与本会话或本批文件相关的认领与冲突')
+    p.add_argument('dir'); p.add_argument('--session'); p.add_argument('--files')
+    p.add_argument('--max-bytes', type=int, default=4000); p.set_defaults(func=cmd_coord)
+    coord_cmds = {'claim', 'release', 'handoff', 'verify', 'coord'}
     for name, parser in sub.choices.items():
-        if name != 'install-hooks':
+        if name != 'install-hooks' and name not in coord_cmds:
             parser.add_argument('--role', help='isolation:on 时须与 TEAM.md 的 main-role 一致；不是新增授权')
     a = ap.parse_args()
     for name in ('max_bytes', 'recent_bytes', 'retrieval_bytes'):
@@ -975,11 +1133,15 @@ def main():
         ap.error('-k 必须在 1..20 之间')
     if hasattr(a, 'turns') and not 1 <= a.turns <= 20:
         ap.error('--turns 必须在 1..20 之间')
+    if hasattr(a, 'limit') and not 1 <= a.limit <= 200:
+        ap.error('--limit 必须在 1..200 之间')
+    if hasattr(a, 'max_depth') and a.max_depth < 0:
+        ap.error('--max-depth 不得为负数')
     if getattr(a, 'after_id', None) and not a.recent:
         ap.error('--after-id 必须与 --recent 同用')
     try:
-        if a.cmd != 'install-hooks':
-            isolation_guard(getattr(a, 'dir', getattr(a, 'root', '.')), a.role)
+        if a.cmd != 'install-hooks' and a.cmd not in coord_cmds:
+            isolation_guard(getattr(a, 'dir', getattr(a, 'root', '.')), getattr(a, 'role', None))
         code = a.func(a) or 0
     except (ValueError, OSError) as e:
         print('ERR ' + str(e), file=sys.stderr)

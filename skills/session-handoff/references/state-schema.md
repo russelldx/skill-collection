@@ -40,7 +40,6 @@ AGENTS.md 继续保存背景、架构、规范和交接路径；已有 agent 定
   "title": "第一批",
   "status": "in-progress",
   "verified": false,
-  "archiveReady": false,
   "openItems": ["待验证"],
   "evidence": [],
   "summary": "当前目标的一句话说明"
@@ -49,7 +48,7 @@ AGENTS.md 继续保存背景、架构、规范和交接路径；已有 agent 定
 
 ID 使用1–64位英文字母、数字、下划线、短横线，首位字母或数字；不可当文件路径。事件节开头用 `**task**: T1` 关联，代码块中的标题/标记不作为节边界。一个事件节对应一个任务；混合记录先人工核对分节，不让脚本猜。
 
-任务只有同时满足 done、verified=true、archiveReady=true、openItems=[]、非空 evidence 和 summary 才可归档。`verified` 是人工核验记录，不是脚本代跑测试；待用户验收时保留在 openItems，不能为了归档强行关闭。
+任务只有同时满足 done、verified=true、openItems=[]、非空 evidence 和 summary，且没有关联的未完成 nextActions 才可归档。`verified` 记录模型/人工实际核验，不是脚本代跑测试；待用户验收时保留在 openItems，不能为了归档强行关闭。不再要求额外的 archiveReady 标志；旧数据含此字段仍可读取，但不能把它当暂停开关，暂停原因应记入 openItems，模型归档前重新核对。
 
 STATE.json 在上述数据外增加 `source: {path, sha256}`，path 为规范化绝对来源路径，hash 覆盖当前文档除派生§0外的完整 UTF-8 内容；文档迁址后需核对并 refresh，不能把同名文件当同一来源。`validate/context` 对比完整派生数据与§0，可发现同日变更、手改STATE和摘要漂移；不是只比较日期。外部证据文件未纳入此hash，重要操作前仍须复核。
 
@@ -64,10 +63,11 @@ python scripts/handoff.py context "<目录>" --query "关键词" --task T1
 
 | 项目 | 默认硬上限 |
 |---|---|
-| 整个 context JSON 输出（含标签、路径与元数据） | 24000 UTF-8字节，`--max-bytes` |
-| 可选近期原文 | 12000字节，`--recent-bytes`；最多4轮，`--turns` |
-| 可选检索片段 | 6000字节，`--retrieval-bytes`；最多3条 |
-| 单独 search 输出 | 6000字节，`--max-bytes`；默认3条，`-k` 允许1–20 |
+| 整个 context JSON 输出（含标签、路径与元数据） | 12000 UTF-8字节，`--max-bytes` |
+| 可选近期原文 | 6000字节，`--recent-bytes`；最多4轮，`--turns` |
+| 可选检索片段 | 3000字节，`--retrieval-bytes`；最多3条 |
+| 单独 search 输出 | 3000字节，`--max-bytes`；默认3条，`-k` 允许1–20 |
+| status 总览 | 最多20项及20条错误，`--limit` 允许1–200；省略数明确报告 |
 
 这些是可调整的初始预算，不是行业标准，也不冒充精确 token 计数。无 tokenizer 时用确定性字节上限约束工具输出；宿主窗口、系统指令、其它工具与输出空间不包含在此额度内。宿主若暴露剩余额度，调用方应进一步收紧，不把本包上限当剩余上下文。
 
@@ -116,7 +116,34 @@ python scripts/handoff.py status "<获准根目录>" --max-depth 2 --status in-p
 
 refresh/archive 使用协作式独占锁、预期字节复核与原子替换；归档有原文备份、目标校验、可重复预览。锁不是编辑器锁，无法保证外部编辑器遵守，发现并行变化仍按核心纪律停手；不删除不属于自己的锁。多文件写入被中断时不盲目回滚抢写，用备份与实际磁盘态人工恢复；STATE漂移会阻止context使用过期快照。
 
-## 6. 专家团与宿主接入边界
+## 6. 同项目多功能并行
+
+复用目录参数，不新增注册表、list 命令或共享“当前功能”状态。例如：
+
+```text
+.handoff/
+  AGENTS.md                 已有静态约定，不自动创建
+  login/HANDOFF.md           登录功能
+  login/STATE.json           该功能派生状态
+  login/archive/             该功能历史
+  export/HANDOFF.md          导出功能，具有自己的 STATE/archive/备份/锁
+```
+
+```bash
+python scripts/handoff.py status ".handoff" --max-depth 1
+python scripts/handoff.py context ".handoff/login"
+python scripts/handoff.py archive ".handoff/login" T1 --apply
+python scripts/handoff.py context ".handoff/export"
+```
+
+- 用户指定“继续登录功能”或明确文档路径时，只选择对应目录；存在多个匹配才询问。不要对每个功能逐一运行 context。已有根级单功能文档继续原位使用，不自动搬迁。
+- 指定 `login/HANDOFF.md` 时，用其独立状态所在目录 `login` 作命令根；不要在 `.handoff` 上用 `--doc login/HANDOFF.md` 创建共用 STATE。旧版特殊布局须核对 STATE.source 后沿用，不能猜迁移。
+- 任务ID只需在功能内稳定、唯一；两个功能都用 T1 不冲突。搜索只读选中目录的主文档及 archive，不递归检索兄弟功能；TEAM 的祖先隔离规则仍有效。
+- status 只供定位，不能证明状态已验证；默认展示优先级较高的20项及 DIRECTORY，省略不代表任务丢失。缩小根目录/状态过滤优先于增大 --limit；不要自动轮询全库。JSON 的 count 为过滤后总数、omitted 为未展示项数；总览因读取/隔离错误跳过子目录时，两种输出格式均退出1；根目录被隔离守卫拒绝则退出2。
+- 单目录同功能协作继续用 TEAM/fileOwnership；跨功能只交换需要的接口约定、依赖与证据路径，不互相抄写状态。相同代码文件仍要协调，目录隔离不保证代码互不干扰。
+- 编程任务可在 artifacts 记工作区绝对路径和分支；分支不是功能身份。并行修改代码可选独立 worktree，切分支本身不能隔离同时进行的会话；创建/切换/合并不由交接工具代办。同功能跨工作区时显式指向既有交接目录，不自动复制；非编程无须 git。
+
+## 7. 专家团与宿主接入边界
 
 - 共享模式的 TEAM.md 任务板继续是协作权威。主角色在核验后将本批任务投影到当前态，来源写明 TEAM/OUTBOX；状态冲突先查来源，不能用派生STATE反过来覆盖任务板。
 - isolation:on：先声明角色，主角色才可用共享 context/search/status（加 --role）；隔离角色只走 BRIEF/QUESTIONS，不读取主角色的近期原文或检索结果。工具支持原模板的列表开关及普通键值写法，但 --role 不是认证/授权机制。
