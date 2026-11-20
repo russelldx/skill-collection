@@ -58,7 +58,7 @@ cp -r skills/anthropic-frontend-design <你的agent技能目录>/
 
 暂停项：`superpowers-using-superpowers`、`superpowers-finishing-a-development-branch`、`pua-pua`、`pua-pua-loop`。归档保留来源和代码，不代表缺陷已全部修复或已获重新启用授权。
 
-`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出了不记录同步基线的技能：4 个暂停入口、4 个已经合并的来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`），以及作者要求**不入库**的 `daibi`、`tuomin`。这些目录在两个方向上都不参与同步：不会从本机导入仓库，也不会从仓库导出到本机。
+`sync-skills.py` 的 `EXCLUDED_SKILLS` 列出了不记录同步基线的技能：4 个暂停入口、4 个已经合并的来源（`diagnosing-bugs`、`claude-mem-learn-codebase`、`pua-mama`、`pua-yes`）、作者要求**不入库**的 `daibi`、`tuomin`，以及用户决定本地保留、不入库的英文写作工具 `ai-check`、`humanize`。这些目录在两个方向上都不参与同步：不会从本机导入仓库，也不会从仓库导出到本机。
 
 `check` 输出的 `excluded-or-inactive` 中，还会出现两类没有仓库副本的条目。一类是宿主内置的 `deep-research`；另一类是只保存在本机、不在仓库或 GitHub 发布的 `skill-update`，`.gitignore` 中的 `skills/skill-update/` 路径也会阻止它被加入仓库。这些提示都正常，不表示漏了同步，不要为了消掉提示把它们 import 进仓库。
 

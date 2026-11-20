@@ -27,7 +27,8 @@ import uuid
 MISSING = "missing"
 EXCLUDED_SKILLS = {"daibi", "tuomin", "diagnosing-bugs", "claude-mem-learn-codebase",
                    "pua-mama", "pua-yes", "pua-pua", "pua-pua-loop",
-                   "superpowers-using-superpowers", "superpowers-finishing-a-development-branch"}
+                   "superpowers-using-superpowers", "superpowers-finishing-a-development-branch",
+                   "ai-check", "humanize"}
 EXCLUDED_PARTS = {"hooks", "cache", "caches", "__pycache__", "node_modules", "venv",
                   "dist", "build", "target", "_meta.json", "metadata.json", "package-lock.json",
                   "yarn.lock", "pnpm-lock.yaml", "uv.lock", "skill-lock.json", "skills-lock.json"}
