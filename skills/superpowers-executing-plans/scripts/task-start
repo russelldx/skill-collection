@@ -18,7 +18,7 @@ fi
 
 plan=$1
 n=$2
-sdd="$(cd "$(dirname "$0")/../../subagent-driven-development/scripts" && pwd)"
+sdd="$(cd "$(dirname "$0")/../../superpowers-subagent-driven-development/scripts" && pwd)"
 
 # BASE comes from the same repository the brief is written into (sdd-repo
 # also refuses one with no commit yet), not from the bare cwd.

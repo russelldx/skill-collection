@@ -33,7 +33,7 @@ bash validate-skills.sh
 - 最终完整隔离回归：修复审查发现后，运行下方 `unittest discover` 命令，177 项全部通过，0 失败、0 跳过，用时 792.482 秒；包含验证器 41 项、同步引擎 55 项、MCP smoke 25 项、交接 56 项。此前分组执行的 113 项和 56 项也通过，但不把重复运行累加成新的覆盖数。
 - 只读对话推演：由未参与正文编写的代理，仅依据安装向导与 README，走查不懂选推荐、拒绝全局规则、缺密钥、只选 CLI、本机登录态、非 Windows 选择 Snipaste、数据库归属未知、已有定制技能和取消九种情景，未发现指令冲突。这是文本推演，不是真实新手安装或用户体验测试。
 - 后续流程简化：按用户要求，安装与更新共用对话入口，先选择和确认，获准后才操作。原样复制 Skill 只核对文件完整性与目标位置，不要求运行功能测试、回归套件或新会话试题；卡片的“如何验证”保留为按需参考。此调整仅改读者文档，未改校验器或技能脚本；上面的 177 项仍指该版本代码的隔离回归，不代表运行了实际安装。
-- 已有功能限制：卡片明确提示 `superpowers-executing-plans/scripts/task-start` 的兄弟目录名与本仓库前缀不符，以及 SDD 的 INDEX 两轮描述与参考文件五轮上限不一致。未为编写指南修改这些 Skill，也未将相应执行分支记为可用。
+- 已修复的已知缺陷：`superpowers-executing-plans/scripts/task-start` 的兄弟目录引用已补 `superpowers-` 前缀；SDD 的 INDEX 修复评审上限已从"两轮"改为"五轮"，与 `references/fix-loop.md` 一致。说明卡同步更新，不再标注为不可用。
 
 复现本次完整隔离套件：
 
@@ -150,7 +150,7 @@ web-access 合并更新至上游 `d173a75`（v2.6.0，浏览器发现重做、�
   - 失效引用清理：不存在的 `/setup-*` 命令、未绑定的参考/模板文件、失效路径与锚点（如 `./visual-companion.md`、`./code-reviewer.md`）。
   - 隐藏强制行为：不再强制接管所有联网、不再自动链式调用缺失技能、不再自动提交设计文档；worktree 只有完成只读检测后，才请求安装授权。
   - 平台假设：移除硬编码的个人 Node 路径，将 uuidgen 依赖改为可移植方案，并将 `claude -p` 段标注为宿主专属。
-- 仍留有的低优先级项（未修复）：`content-research-writer`、`superpowers-dispatching-parallel-agents`、`superpowers-receiving-code-review`、`superpowers-verification-before-completion` 等 5 项涉及宿主措辞/不可验证引用的小问题；不影响授权与安全边界。
+- 原低优先级项已消除：`content-research-writer`、`superpowers-dispatching-parallel-agents`、`superpowers-receiving-code-review`、`superpowers-verification-before-completion` 等 5 项宿主措辞/不可验证引用问题，在上游 v7.0.2 合并及后续更新中已清理；2026-11-20 复查确认这些文件中不再含宿主专属名称或失效本地链接。
 - 静态审查与文档修复不等于执行验证；修复后的技能未逐一在真实环境端到端执行。
 
 ## 许可与再分发

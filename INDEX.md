@@ -25,7 +25,7 @@
 | [superpowers-writing-plans](skills/superpowers-writing-plans/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-writing-plans) | 按可验收的成果拆任务，定义接口和验证重点 | 用于多步骤任务；是否写计划文件，按用户要求处理 |
 | [superpowers-executing-plans](skills/superpowers-executing-plans/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-executing-plans) | 直接执行已批准的方案，保留各批次证据并做整体审查 | 遵守已选的执行模式，遇到实质偏差或权限边界时再确认 |
 | [superpowers-test-driven-development](skills/superpowers-test-driven-development/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-test-driven-development) | 红→绿→重构 | 使用本技能不等于获得删除既有工作或绕过权限的授权 |
-| [superpowers-subagent-driven-development](skills/superpowers-subagent-driven-development/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-subagent-driven-development) | 按任务或同形批次委派，分阶段审查，并做整体审查 | 需要宿主支持子代理；不假定子代理会继承上下文，修复评审最多两轮 |
+| [superpowers-subagent-driven-development](skills/superpowers-subagent-driven-development/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-subagent-driven-development) | 按任务或同形批次委派，分阶段审查，并做整体审查 | 需要宿主支持子代理；不假定子代理会继承上下文，修复评审最多五轮 |
 | [superpowers-dispatching-parallel-agents](skills/superpowers-dispatching-parallel-agents/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-dispatching-parallel-agents) | 把独立任务分开处理 | 按需使用；任务共享文件或互相依赖时，不盲目并行 |
 | [superpowers-systematic-debugging](skills/superpowers-systematic-debugging/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-systematic-debugging) | 查找问题根因，诊断性能回归 | 已吸收 diagnosing-bugs 的复现、假设排序和测量方法 |
 | [superpowers-using-git-worktrees](skills/superpowers-using-git-worktrees/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-superpowers-using-git-worktrees) | 隔离开发环境 | 按需使用；安装依赖、提交和清理仍要分别获得相应授权 |
