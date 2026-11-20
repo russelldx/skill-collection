@@ -1,229 +1,548 @@
 """
-PowerPoint-specific XML validation against OOXML schemas.
+Validator for PowerPoint presentation XML files against XSD schemas.
 """
 
 import re
+from pathlib import Path
+
+from helpers import opc_target, rels_source_part, safe_extract
 
 from .base import BaseSchemaValidator
 
 
 class PPTXSchemaValidator(BaseSchemaValidator):
-    """Extends the base validator with PPTX-specific structural checks."""
 
-    _PML_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
-
-    PRESENTATIONML_NAMESPACE = _PML_NS
+    PRESENTATIONML_NAMESPACE = (
+        "http://schemas.openxmlformats.org/presentationml/2006/main"
+    )
 
     ELEMENT_RELATIONSHIP_TYPES = {
-        "sldid":         "slide",
-        "sldmasterid":   "slidemaster",
+        "sldid": "slide",
+        "sldmasterid": "slidemaster",
         "notesmasterid": "notesmaster",
-        "sldlayoutid":   "slidelayout",
-        "themeid":       "theme",
-        "tablestyleid":  "tablestyles",
+        "sldlayoutid": "slidelayout",
+        "themeid": "theme",
+        "tablestyleid": "tablestyles",
     }
-
-    # ── Orchestrator ─────────────────────────────────────────────────────
 
     def validate(self):
         if not self.validate_xml():
             return False
 
-        ok = True
-        for fn in (
-            self.validate_namespaces,
-            self.validate_unique_ids,
-            self._check_uuid_format,
-            self.validate_file_references,
-            self._check_layout_ids,
-            self.validate_content_types,
-            self.validate_against_xsd,
-            self._check_notes_refs,
-            self.validate_all_relationship_ids,
-            self._check_duplicate_layouts,
-        ):
-            if not fn():
-                ok = False
-        return ok
+        all_valid = True
+        if not self.validate_namespaces():
+            all_valid = False
 
-    # ── UUID format ──────────────────────────────────────────────────────
+        if not self.validate_unique_ids():
+            all_valid = False
 
-    def validate_uuid_ids(self):
-        return self._check_uuid_format()
+        if not self.validate_uuid_ids():
+            all_valid = False
 
-    def _check_uuid_format(self):
+        if not self.validate_file_references():
+            all_valid = False
+
+        if not self.validate_slide_layout_ids():
+            all_valid = False
+
+        if not self.validate_content_types():
+            all_valid = False
+
+        if not self.validate_against_xsd():
+            all_valid = False
+
+        if not self.validate_notes_slide_references():
+            all_valid = False
+
+        if not self.validate_all_relationship_ids():
+            all_valid = False
+
+        if not self.validate_no_duplicate_slide_layouts():
+            all_valid = False
+
+        if not self.validate_master_theme_uniqueness():
+            all_valid = False
+
+        if not self.validate_tags():
+            all_valid = False
+
+        if not self.validate_charts():
+            all_valid = False
+
+        if not self.validate_slides():
+            all_valid = False
+
+        return all_valid
+
+    def _package_map(self) -> dict:
+        wanted = []
+        wanted += list(self.unpacked_dir.glob("[[]Content_Types[]].xml"))
+        wanted += list(self.unpacked_dir.glob("ppt/presentation.xml"))
+        wanted += list(self.unpacked_dir.glob("ppt/theme/*.xml"))
+        wanted += list(self.unpacked_dir.glob("ppt/theme/_rels/*.rels"))
+        wanted += list(self.unpacked_dir.glob("ppt/charts/chart*.xml"))
+        for group in ("slideMasters", "notesMasters", "handoutMasters"):
+            wanted += list(self.unpacked_dir.glob(f"ppt/{group}/*.xml"))
+            wanted += list(self.unpacked_dir.glob(f"ppt/{group}/_rels/*.rels"))
+        return {
+            p.relative_to(self.unpacked_dir).as_posix(): p.read_bytes()
+            for p in wanted
+            if p.is_file()
+        }
+
+    @staticmethod
+    def _print_line(text: str, limit: int) -> None:
+        from helpers import one_line
+
+        print(one_line(text, limit))
+
+    def _listed_slides(self) -> set[str] | None:
         import lxml.etree
 
-        issues: list[str] = []
-        _UUID_RE = re.compile(
+        from helpers import SLIDE_REL_TYPE
+
+        r_id = f"{{{self.OFFICE_RELATIONSHIPS_NAMESPACE}}}id"
+        try:
+            pres = lxml.etree.parse(str(self.unpacked_dir / "ppt" / "presentation.xml"))
+            rels = lxml.etree.parse(str(self.unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels"))
+            listed = {e.get(r_id) for e in pres.iter(f"{{{self.PRESENTATIONML_NAMESPACE}}}sldId")}
+            return {
+                opc_target(rel.get("Target", ""), "ppt/presentation.xml", rel.get("TargetMode", ""))
+                for rel in rels.getroot()
+                if rel.get("Id") in listed and rel.get("Type") == SLIDE_REL_TYPE
+            }
+        except (OSError, ValueError, lxml.etree.XMLSyntaxError):
+            return None
+
+    def validate_master_theme_uniqueness(self):
+        from helpers.pptx_theme import _NOTES_MASTERS, live_shared_master_themes
+
+        shared = live_shared_master_themes(self._package_map())
+        if shared:
+            print(f"FAILED - Found {len(shared)} master(s) sharing a theme part:")
+            for message in shared:
+                self._print_line(f"  {message}", 300)
+            if any(m.startswith(_NOTES_MASTERS) for m in shared):
+                print("  Fix: in ppt/presentation.xml, move <p:notesMasterIdLst> back to "
+                      "directly after <p:sldIdLst>. PowerPoint reads that happily.")
+            else:
+                print("  Fix: give each master its own theme part.")
+            return False
+
+        if self.verbose:
+            print("PASSED - No master shares a theme part in a way PowerPoint refuses")
+        return True
+
+    def validate_tags(self):
+        from collections import Counter
+
+        import lxml.etree
+
+        ns = {"p": self.PRESENTATIONML_NAMESPACE, "mc": self.MC_NAMESPACE}
+        r_id = f"{{{self.OFFICE_RELATIONSHIPS_NAMESPACE}}}id"
+        errors = []
+        owners: dict[str, list[str]] = {}  
+        listed = self._listed_slides()
+
+        for slide in sorted(self.unpacked_dir.glob("ppt/slides/*.xml")):
+            relative = slide.relative_to(self.unpacked_dir).as_posix()
+            if listed is not None and relative not in listed:
+                continue
+            try:
+                root = lxml.etree.parse(str(slide)).getroot()
+                named = [t.get(r_id) for t in root.xpath(
+                    ".//p:tags[not(ancestor::mc:Fallback) and not(ancestor::mc:Choice[preceding-sibling::mc:Choice])]",
+                    namespaces=ns)]
+                rels_file = slide.parent / "_rels" / f"{slide.name}.rels"
+                targets = {
+                    rel.get("Id"): opc_target(rel.get("Target", ""), relative, rel.get("TargetMode", ""))
+                    for rel in lxml.etree.parse(str(rels_file)).getroot()
+                    if rel.get("Type", "").endswith("/relationships/tags")
+                } if rels_file.is_file() else {}
+            except (lxml.etree.XMLSyntaxError, ValueError):
+                continue  
+            for rid, count in sorted(Counter(r for r in named if r).items()):
+                if count > 1:
+                    errors.append(
+                        f"  {relative[:80]}: {count} <p:tags> elements name the tags relationship "
+                        f"{rid!r:.20}. Fix: a copied shape kept its <p:custDataLst>; delete that "
+                        f"from the copy, or give it a tags part and relationship of its own"
+                    )
+                if targets.get(rid):
+                    owners.setdefault(targets[rid], []).append(relative)
+
+        for part, slides in sorted(owners.items()):
+            if len(slides) > 1:
+                named_from = sorted(set(slides))
+                more = f" and {len(named_from) - 3} more" if len(named_from) > 3 else ""
+                errors.append(
+                    f"  {part[:80]}: {len(slides)} tags relationships name it, from "
+                    f"{', '.join(s[:60] for s in named_from[:3])}{more}. Fix: copy the part under a new name, add "
+                    f"its Override to [Content_Types].xml and point every relationship but one at a copy of its own "
+                    f"(add_slide.py does this when it duplicates a slide)"
+                )
+
+        if errors:
+            print(f"FAILED - Found {len(errors)} tags part(s) with more than one owner; PowerPoint offers to repair the deck:")
+            for error in errors:
+                self._print_line(error, 700)
+            return False
+        if self.verbose:
+            print("PASSED - Every tags part has one owner")
+        return True
+
+    def validate_charts(self):
+        from helpers.pptx_chart import find_chart_problems
+
+        problems = find_chart_problems(self._package_map())
+        if problems:
+            print(f"FAILED - Found {len(problems)} chart problem(s) PowerPoint rejects:")
+            for message in problems:
+                self._print_line(f"  {message}", 600)
+            return False
+
+        if self.verbose:
+            print("PASSED - Charts satisfy the constraints PowerPoint enforces")
+        return True
+
+    def _original_slide_defects(self, schema) -> set[str]:
+        import tempfile
+        import zipfile
+
+        from helpers.pptx_slide import SLIDE_PART_RE, fatal_slide_errors
+
+        if self.original_file is None:
+            return set()
+
+        found: set[str] = set()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            try:
+                with zipfile.ZipFile(self.original_file, "r") as zf:
+                    safe_extract(zf, temp_path)
+            except (zipfile.BadZipFile, ValueError, OSError):
+                return set()  
+
+            for part in sorted(temp_path.rglob("*.xml")):
+                relative = part.relative_to(temp_path).as_posix()
+                if not SLIDE_PART_RE.fullmatch(relative):
+                    continue
+                ok, errors = self._validate_single_file_xsd(
+                    part.resolve(), temp_path.resolve(), schema_path=schema
+                )
+                if ok is None or ok or not errors:
+                    continue
+                found |= set(fatal_slide_errors(set(errors)))
+        return found
+
+    def validate_slides(self):
+        import lxml.etree
+
+        from helpers.pptx_slide import (
+            SLIDE_PART_RE,
+            fatal_slide_errors,
+            is_schema_verdict,
+            stranded_animation_targets,
+        )
+
+        schema = self.schemas_dir / self.SCHEMA_MAPPINGS["ppt"]
+        inherited = self._original_slide_defects(schema)
+        listed = self._listed_slides()
+        problems: list[str] = []
+        broken: list[str] = []
+
+        for xml_file in self.xml_files:
+            relative = xml_file.relative_to(self.unpacked_dir).as_posix()
+            if not SLIDE_PART_RE.fullmatch(relative):
+                continue
+            unlisted = relative.startswith("ppt/slides/") and listed is not None and relative not in listed
+            try:
+                root = lxml.etree.parse(str(xml_file)).getroot()
+                stranded = [] if unlisted else stranded_animation_targets(root)
+            except lxml.etree.XMLSyntaxError:
+                stranded = []  
+            problems.extend(f"{relative}: {m}" for m in stranded)
+
+            ok, errors = self._validate_single_file_xsd(
+                xml_file.resolve(), self.unpacked_dir.resolve(), schema_path=schema
+            )
+            if ok is None or not errors:
+                continue
+
+            unreadable = [f"{relative}: {e}" for e in errors if not is_schema_verdict(e)]
+            if unreadable:
+                broken.extend(unreadable)
+                continue
+            if ok:
+                continue
+
+            for message in fatal_slide_errors(set(errors)):
+                if message in inherited:
+                    continue  
+                problems.append(f"{relative}: {message}")
+
+        if broken:
+            print(f"FAILED - Could not check {len(broken)} slide part(s):")
+            for message in sorted(broken):
+                self._print_line(f"  {message}", 240)
+
+        if problems:
+            print(f"FAILED - Found {len(problems)} slide problem(s) PowerPoint rejects:")
+            for message in sorted(problems):
+                self._print_line(f"  {message}", 240)
+
+        if broken or problems:
+            return False
+
+        if self.verbose:
+            print("PASSED - Slide XML has none of the defects PowerPoint refuses")
+        return True
+
+    def _get_schema_path(self, xml_file):
+        if xml_file.parent.name == "charts" and xml_file.name.startswith("chart"):
+            return None
+        if xml_file.parent.name == "ppt" and xml_file.suffix == ".xml":
+            import lxml.etree
+
+            try:
+                root = lxml.etree.parse(str(xml_file)).getroot()
+            except (lxml.etree.XMLSyntaxError, OSError):
+                root = None  
+            if root is not None and (lxml.etree.QName(root).namespace or "").startswith(
+                "http://schemas.microsoft.com/office/"
+            ):
+                return None
+        return super()._get_schema_path(xml_file)
+
+    def _preprocess_for_schema(self, xml_doc, relative_path):
+        if relative_path.as_posix() != "ppt/presentation.xml":
+            return xml_doc
+
+        root = xml_doc.getroot()
+        ns = f"{{{self.PRESENTATIONML_NAMESPACE}}}"
+        notes = root.find(f"{ns}notesMasterIdLst")
+        slides = root.find(f"{ns}sldIdLst")
+        if notes is None or slides is None:
+            return xml_doc
+
+        children = list(root)
+        if children.index(notes) < children.index(slides):
+            return xml_doc  
+
+        root.remove(notes)
+        root.insert(list(root).index(slides), notes)
+        return xml_doc
+
+    def validate_uuid_ids(self):
+        import lxml.etree
+
+        errors = []
+        uuid_pattern = re.compile(
             r"^[\{\(]?[0-9A-Fa-f]{8}-?[0-9A-Fa-f]{4}-?[0-9A-Fa-f]{4}-?[0-9A-Fa-f]{4}-?[0-9A-Fa-f]{12}[\}\)]?$"
         )
 
-        for fp in self.xml_files:
+        for xml_file in self.xml_files:
             try:
-                root = lxml.etree.parse(str(fp)).getroot()
-                for el in root.iter():
-                    for attr, val in el.attrib.items():
-                        aname = attr.split("}")[-1].lower()
-                        if aname != "id" and not aname.endswith("id"):
-                            continue
-                        if self._resembles_uuid(val) and not _UUID_RE.match(val):
-                            issues.append(
-                                "  %s: Line %s: ID '%s' appears to be a UUID but contains invalid hex characters"
-                                % (fp.relative_to(self.unpacked_dir), el.sourceline, val))
-            except (lxml.etree.XMLSyntaxError, Exception) as exc:
-                issues.append("  %s: Error: %s" % (fp.relative_to(self.unpacked_dir), exc))
+                root = lxml.etree.parse(str(xml_file)).getroot()
 
-        if issues:
-            print("FAILED - Found %d UUID ID validation errors:" % len(issues))
-            for i in issues:
-                print(i)
+                for elem in root.iter():
+                    for attr, value in elem.attrib.items():
+                        attr_name = attr.split("}")[-1].lower()
+                        if attr_name == "id" or attr_name.endswith("id"):
+                            if self._looks_like_uuid(value):
+                                if not uuid_pattern.match(value):
+                                    errors.append(
+                                        f"  {xml_file.relative_to(self.unpacked_dir)}: "
+                                        f"Line {elem.sourceline}: ID '{value}' appears to be a UUID but contains invalid hex characters"
+                                    )
+
+            except (lxml.etree.XMLSyntaxError, Exception) as e:
+                errors.append(
+                    f"  {xml_file.relative_to(self.unpacked_dir)}: Error: {e}"
+                )
+
+        if errors:
+            print(f"FAILED - Found {len(errors)} UUID ID validation errors:")
+            for error in errors:
+                self._print_line(error, 300)
             return False
-        if self.verbose:
-            print("PASSED - All UUID-like IDs contain valid hex values")
-        return True
+        else:
+            if self.verbose:
+                print("PASSED - All UUID-like IDs contain valid hex values")
+            return True
 
-    @staticmethod
-    def _resembles_uuid(val: str) -> bool:
-        stripped = val.strip("{}()").replace("-", "")
-        return len(stripped) == 32 and stripped.isalnum()
-
-    # ── Slide-layout IDs in slide-masters ────────────────────────────────
+    def _looks_like_uuid(self, value):
+        clean_value = value.strip("{}()").replace("-", "")
+        return len(clean_value) == 32 and all(c.isalnum() for c in clean_value)
 
     def validate_slide_layout_ids(self):
-        return self._check_layout_ids()
-
-    def _check_layout_ids(self):
         import lxml.etree
 
-        issues: list[str] = []
-        masters = list(self.unpacked_dir.glob("ppt/slideMasters/*.xml"))
+        errors = []
 
-        if not masters:
+        slide_masters = list(self.unpacked_dir.glob("ppt/slideMasters/*.xml"))
+
+        if not slide_masters:
             if self.verbose:
                 print("PASSED - No slide masters found")
             return True
 
-        for sm in masters:
+        for slide_master in slide_masters:
             try:
-                root = lxml.etree.parse(str(sm)).getroot()
-                rf = sm.parent / "_rels" / ("%s.rels" % sm.name)
-                if not rf.exists():
-                    issues.append(
-                        "  %s: Missing relationships file: %s"
-                        % (sm.relative_to(self.unpacked_dir), rf.relative_to(self.unpacked_dir)))
+                root = lxml.etree.parse(str(slide_master)).getroot()
+
+                rels_file = slide_master.parent / "_rels" / f"{slide_master.name}.rels"
+
+                if not rels_file.exists():
+                    errors.append(
+                        f"  {slide_master.relative_to(self.unpacked_dir)}: "
+                        f"Missing relationships file: {rels_file.relative_to(self.unpacked_dir)}"
+                    )
                     continue
 
-                rroot = lxml.etree.parse(str(rf)).getroot()
-                layout_rids = {
-                    rel.get("Id")
-                    for rel in rroot.findall("{%s}Relationship" % self.PACKAGE_RELATIONSHIPS_NAMESPACE)
-                    if "slideLayout" in rel.get("Type", "")
-                }
+                rels_root = lxml.etree.parse(str(rels_file)).getroot()
 
-                for lid_el in root.findall(".//{%s}sldLayoutId" % self._PML_NS):
-                    rid = lid_el.get("{%s}id" % self.OFFICE_RELATIONSHIPS_NAMESPACE)
-                    lid = lid_el.get("id")
-                    if rid and rid not in layout_rids:
-                        issues.append(
-                            "  %s: Line %s: sldLayoutId with id='%s' "
-                            "references r:id='%s' which is not found in slide layout relationships"
-                            % (sm.relative_to(self.unpacked_dir), lid_el.sourceline, lid, rid))
+                valid_layout_rids = set()
+                for rel in rels_root.findall(
+                    f".//{{{self.PACKAGE_RELATIONSHIPS_NAMESPACE}}}Relationship"
+                ):
+                    rel_type = rel.get("Type", "")
+                    if "slideLayout" in rel_type:
+                        valid_layout_rids.add(rel.get("Id"))
 
-            except (lxml.etree.XMLSyntaxError, Exception) as exc:
-                issues.append("  %s: Error: %s" % (sm.relative_to(self.unpacked_dir), exc))
+                for sld_layout_id in root.findall(
+                    f".//{{{self.PRESENTATIONML_NAMESPACE}}}sldLayoutId"
+                ):
+                    r_id = sld_layout_id.get(
+                        f"{{{self.OFFICE_RELATIONSHIPS_NAMESPACE}}}id"
+                    )
+                    layout_id = sld_layout_id.get("id")
 
-        if issues:
-            print("FAILED - Found %d slide layout ID validation errors:" % len(issues))
-            for i in issues:
-                print(i)
-            print("Remove invalid references or add missing slide layouts to the relationships file.")
+                    if r_id and r_id not in valid_layout_rids:
+                        errors.append(
+                            f"  {slide_master.relative_to(self.unpacked_dir)}: "
+                            f"Line {sld_layout_id.sourceline}: sldLayoutId with id='{layout_id}' "
+                            f"references r:id='{r_id}' which is not found in slide layout relationships"
+                        )
+
+            except (lxml.etree.XMLSyntaxError, Exception) as e:
+                errors.append(
+                    f"  {slide_master.relative_to(self.unpacked_dir)}: Error: {e}"
+                )
+
+        if errors:
+            print(f"FAILED - Found {len(errors)} slide layout ID validation errors:")
+            for error in errors:
+                self._print_line(error, 300)
+            print(
+                "Remove invalid references or add missing slide layouts to the relationships file."
+            )
             return False
-        if self.verbose:
-            print("PASSED - All slide layout IDs reference valid slide layouts")
-        return True
-
-    # ── Duplicate slide layouts per slide ────────────────────────────────
+        else:
+            if self.verbose:
+                print("PASSED - All slide layout IDs reference valid slide layouts")
+            return True
 
     def validate_no_duplicate_slide_layouts(self):
-        return self._check_duplicate_layouts()
-
-    def _check_duplicate_layouts(self):
         import lxml.etree
 
-        issues: list[str] = []
-        for rf in self.unpacked_dir.glob("ppt/slides/_rels/*.xml.rels"):
+        errors = []
+        slide_rels_files = list(self.unpacked_dir.glob("ppt/slides/_rels/*.xml.rels"))
+
+        for rels_file in slide_rels_files:
             try:
-                root = lxml.etree.parse(str(rf)).getroot()
-                layout_count = sum(
-                    1 for rel in root.findall("{%s}Relationship" % self.PACKAGE_RELATIONSHIPS_NAMESPACE)
+                root = lxml.etree.parse(str(rels_file)).getroot()
+
+                layout_rels = [
+                    rel
+                    for rel in root.findall(
+                        f".//{{{self.PACKAGE_RELATIONSHIPS_NAMESPACE}}}Relationship"
+                    )
                     if "slideLayout" in rel.get("Type", "")
+                ]
+
+                if len(layout_rels) > 1:
+                    errors.append(
+                        f"  {rels_file.relative_to(self.unpacked_dir)}: has {len(layout_rels)} slideLayout references"
+                    )
+
+            except Exception as e:
+                errors.append(
+                    f"  {rels_file.relative_to(self.unpacked_dir)}: Error: {e}"
                 )
-                if layout_count > 1:
-                    issues.append(
-                        "  %s: has %d slideLayout references"
-                        % (rf.relative_to(self.unpacked_dir), layout_count))
-            except Exception as exc:
-                issues.append("  %s: Error: %s" % (rf.relative_to(self.unpacked_dir), exc))
 
-        if issues:
+        if errors:
             print("FAILED - Found slides with duplicate slideLayout references:")
-            for i in issues:
-                print(i)
+            for error in errors:
+                self._print_line(error, 300)
             return False
-        if self.verbose:
-            print("PASSED - All slides have exactly one slideLayout reference")
-        return True
-
-    # ── Notes-slide uniqueness ───────────────────────────────────────────
+        else:
+            if self.verbose:
+                print("PASSED - All slides have exactly one slideLayout reference")
+            return True
 
     def validate_notes_slide_references(self):
-        return self._check_notes_refs()
-
-    def _check_notes_refs(self):
         import lxml.etree
 
-        issues: list[str] = []
-        notes_map: dict[str, list] = {}
+        errors = []
+        notes_slide_references = {}  
 
-        rels_files = list(self.unpacked_dir.glob("ppt/slides/_rels/*.xml.rels"))
-        if not rels_files:
+        slide_rels_files = list(self.unpacked_dir.glob("ppt/slides/_rels/*.xml.rels"))
+
+        if not slide_rels_files:
             if self.verbose:
                 print("PASSED - No slide relationship files found")
             return True
 
-        for rf in rels_files:
+        for rels_file in slide_rels_files:
             try:
-                root = lxml.etree.parse(str(rf)).getroot()
-                for rel in root.findall("{%s}Relationship" % self.PACKAGE_RELATIONSHIPS_NAMESPACE):
-                    if "notesSlide" not in rel.get("Type", ""):
-                        continue
-                    tgt = rel.get("Target", "")
-                    if not tgt:
-                        continue
-                    normalised = tgt.replace("../", "")
-                    slide = rf.stem.replace(".xml", "")
-                    notes_map.setdefault(normalised, []).append((slide, rf))
-            except (lxml.etree.XMLSyntaxError, Exception) as exc:
-                issues.append("  %s: Error: %s" % (rf.relative_to(self.unpacked_dir), exc))
+                root = lxml.etree.parse(str(rels_file)).getroot()
 
-        for tgt, refs in notes_map.items():
-            if len(refs) > 1:
-                names = [r[0] for r in refs]
-                issues.append("  Notes slide '%s' is referenced by multiple slides: %s" % (tgt, ", ".join(names)))
-                for _, rf in refs:
-                    issues.append("    - %s" % rf.relative_to(self.unpacked_dir))
+                for rel in root.findall(
+                    f".//{{{self.PACKAGE_RELATIONSHIPS_NAMESPACE}}}Relationship"
+                ):
+                    rel_type = rel.get("Type", "")
+                    if "notesSlide" in rel_type:
+                        part = opc_target(
+                            rel.get("Target", ""),
+                            rels_source_part(rels_file, self.unpacked_dir),
+                            rel.get("TargetMode", ""),
+                        )
+                        if part:
+                            slide_name = rels_file.stem.replace(
+                                ".xml", ""
+                            )  
 
-        if issues:
-            main_count = len([i for i in issues if not i.startswith("    ")])
-            print("FAILED - Found %d notes slide reference validation errors:" % main_count)
-            for i in issues:
-                print(i)
+                            notes_slide_references.setdefault(part, []).append(
+                                (slide_name, rels_file)
+                            )
+
+            except (lxml.etree.XMLSyntaxError, Exception) as e:
+                errors.append(
+                    f"  {rels_file.relative_to(self.unpacked_dir)}: Error: {e}"
+                )
+
+        for target, references in notes_slide_references.items():
+            if len(references) > 1:
+                slide_names = [ref[0] for ref in references]
+                errors.append(
+                    f"  Notes slide '{target}' is referenced by multiple slides: {', '.join(slide_names)}"
+                )
+                for slide_name, rels_file in references:
+                    errors.append(f"    - {rels_file.relative_to(self.unpacked_dir)}")
+
+        if errors:
+            print(
+                f"FAILED - Found {len([e for e in errors if not e.startswith('    ')])} notes slide reference validation errors:"
+            )
+            for error in errors:
+                self._print_line(error, 300)
             print("Each slide may optionally have its own slide file.")
             return False
-        if self.verbose:
-            print("PASSED - All notes slide references are unique")
-        return True
+        else:
+            if self.verbose:
+                print("PASSED - All notes slide references are unique")
+            return True
 
 
 if __name__ == "__main__":

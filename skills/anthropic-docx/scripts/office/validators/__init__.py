@@ -1,6 +1,5 @@
 """
-Office document validation toolkit — exposes checker classes for
-DOCX, PPTX, and tracked-change (redlining) scenarios.
+Validation modules for Word document processing.
 """
 
 from .base import BaseSchemaValidator

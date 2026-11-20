@@ -1,9 +1,9 @@
 ---
 name: docx
-version: 2.0.0
+version: 2.1.0
 description: "Comprehensive Word (.docx) skill: create, read, edit, and manipulate Word documents end-to-end. Covers turning Markdown or structured text into polished Word output, filling reusable templates ({{token}} or reference-doc), applying correct Chinese (CJK) typography defaults, generating bespoke docs from scratch with docx-js, and low-level OOXML patching including tracked changes and comments. Triggers include any mention of 'Word doc', 'word document', '.docx', 'Markdown 转 Word', 'md 转 docx', '套模板生成 Word', '中文 Word 报告', 'tracked changes', '修订标记', 'Word 批注', 'OOXML', or requests to insert/replace images, perform find-and-replace, or convert content into a polished Word document; generic business-document words (报告/备忘录/信函/合同/会议纪要, report/memo/letter/contract/minutes) apply only when a Word/.docx deliverable is intended. Do NOT use for PDFs, spreadsheets, Google Docs, or general coding tasks unrelated to document generation."
 description_zh: "全功能 Word(.docx) 技能：端到端创建、读取、编辑和操作 Word 文档。覆盖 Markdown/结构化文本转 Word、模板套用（{{token}} 或 reference-doc 两种）、正确的中文排版默认值、用 docx-js 从零定制文档、以及 OOXML 底层修补（含修订标记、批注）。触发词：'Word 文档'、'.docx'、'Markdown 转 Word'、'md 转 docx'、'套模板生成 Word'、'中文 Word 报告'、'修订标记'、'Word 批注'、'OOXML'，以及插入/替换图片、查找替换、把内容转为精美 Word 文档等请求；'报告/备忘录/信函/合同/会议纪要'（report/memo/letter/contract/minutes）等通用文种词仅在明确需要 Word/.docx 产出时触发。不适用于 PDF、电子表格、Google Docs 或与文档生成无关的编程任务。"
-license: Proprietary
+license: Complete terms in LICENSE.txt
 ---
 
 # docx-pro: Complete Word document skill
@@ -168,6 +168,7 @@ for the full limitation list.
 ### After generating: validate + preview
 
 ```bash
+zip -d output.docx '*/' >/dev/null || true   # drop ZIP folder entries: Word has refused them via cloud co-editing services
 python scripts/office/validate.py output.docx
 python scripts/preview.py output.docx --pages 1,2,last  # if soffice present
 ```
@@ -175,6 +176,8 @@ python scripts/preview.py output.docx --pages 1,2,last  # if soffice present
 `validate.py` passing does NOT mean the layout is visually correct. For any
 multi-page or table-heavy document, render at least pages 1–2 and inspect them
 for margin overflow, squeezed tables, missing fonts, or empty TOC.
+`pdftoppm` zero-pads page numbers to the width of the page count
+(`page-01.jpg`…`page-12.jpg`).
 
 ---
 
@@ -567,6 +570,8 @@ sections: [{
 - **TOC only with HeadingLevel**
 - **Override styles by ID:** "Heading1", "Heading2", etc.
 - **Provide `outlineLevel`** for TOC (0 = H1, 1 = H2 …)
+- **Style every heading level you use:** each needs its own font, `spacing.before`/`after` (even if 0) and `keepNext: true` — the built-in styles set none of them
+- **Dot-leader / right-aligned-on-same-line:** use `PositionalTab` (`alignment: PositionalTabAlignment.RIGHT`, `leader: PositionalTabLeader.DOT`) inside a `TextRun`, not literal `.` or space padding
 
 ---
 
@@ -577,12 +582,18 @@ Execute all three stages in order.
 ### Stage 1 — Unpack
 
 ```bash
-python scripts/office/unpack.py document.docx unpacked/
+python3 -c "import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall('unpacked')" document.docx   # not unzip, which restores symlinks — docx from external parties is untrusted
+python scripts/merge_runs.py unpacked/   # coalesce fragmented runs so text is findable
 ```
 
-Inflates the archive, pretty-prints XML, coalesces adjacent runs, and encodes
-typographic quotes as XML entities (`&#x201C;` etc.). Pass `--merge-runs false`
-to skip run coalescing.
+Word splits text across many `<w:r>` runs (revision ids, spell-check markers),
+so a phrase you can see in the document often doesn't exist as a contiguous
+string in the XML. `merge_runs.py` merges adjacent identically-formatted runs
+in `word/document.xml` without changing content or rendering; it also accepts
+a `.docx` directly (`python scripts/merge_runs.py doc.docx -o merged.docx`).
+
+**Do NOT reformat or pretty-print the extracted XML** — edit
+`unpacked/word/document.xml` in place.
 
 ### Stage 2 — Edit the XML
 
@@ -607,12 +618,16 @@ The Edit tool makes every replacement visible and auditable.
 | `&#x201C;` | " (left double) |
 | `&#x201D;` | " (right double) |
 
-**Inserting comments** — `comment.py` handles the multi-file boilerplate (text must be XML-escaped):
+**Inserting comments** — `comment.py` handles the multi-file boilerplate.
+Pass plain text (XML-escaped automatically; use `--raw` for pre-escaped text).
+Comment IDs are auto-assigned; the script prints the marker snippet to wire
+into document.xml:
 
 ```bash
-python scripts/comment.py unpacked/ 0 "Comment text with &amp; and &#x2019;"
-python scripts/comment.py unpacked/ 1 "Reply text" --parent 0
-python scripts/comment.py unpacked/ 0 "Text" --author "Custom Author"
+python scripts/comment.py unpacked/ "Comment text with & and smart quotes"
+python scripts/comment.py unpacked/ "Reply text" --parent 0
+python scripts/comment.py unpacked/ "Text" --author "Custom Author"
+python scripts/comment.py contract.docx "Text" -o annotated.docx   # .docx-direct mode
 ```
 
 Then wire markers into document.xml (see §XML Patterns → Comments).
@@ -620,15 +635,15 @@ Then wire markers into document.xml (see §XML Patterns → Comments).
 ### Stage 3 — Repack
 
 ```bash
-python scripts/office/pack.py unpacked/ output.docx --original document.docx
+(cd unpacked && rm -f ../output.docx && zip -XrDy ../output.docx .)
+python scripts/office/validate.py output.docx --original document.docx   # XSD checks; --auto-repair fixes common issues
+# redlining? add --author "<the name you redlined under>" to check every edit is tracked
 ```
 
-Validates with automatic repair, condenses XML, produces the final DOCX. Pass
-`--validate false` to bypass.
-
-**Auto-repair corrects:**
-- `durableId` values ≥ 0x7FFFFFFF (replaced with fresh IDs)
-- Missing `xml:space="preserve"` on `<w:t>` with leading/trailing whitespace
+`zip -XrDy` omits directory entries (Word has refused files containing them
+when opened through a cloud co-editing service). `--auto-repair` corrects
+common issues such as `durableId` values ≥ 0x7FFFFFFF and missing
+`xml:space="preserve"` on `<w:t>` with leading/trailing whitespace.
 
 **Does NOT fix:** malformed XML, illegal nesting, broken relationships, schema violations.
 
@@ -798,7 +813,7 @@ python scripts/office/soffice.py --headless --convert-to docx document.doc
 pandoc --track-changes=all document.docx -o output.md
 
 # Direct XML access for fine-grained inspection
-python scripts/office/unpack.py document.docx unpacked/
+python3 -c "import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall('unpacked')" document.docx
 ```
 
 ### Rendering pages as images
@@ -815,6 +830,14 @@ Produces a pristine copy with all revisions resolved (LibreOffice required):
 ```bash
 python scripts/accept_changes.py input.docx output.docx
 ```
+
+Accepting a deleted paragraph mark should join that paragraph to the one below
+it, so a paragraph whose runs are *all* deleted vanishes. Word does this;
+`accept_changes.py` and `pandoc --track-changes=accept` don't always — they can
+strip the deleted text but leave the emptied paragraph behind (a stray empty
+bullet when it was auto-numbered). An empty bullet in either view is an
+artifact of that view, not a defect in the document; check paragraph deletions
+in the XML.
 
 ---
 
@@ -836,11 +859,10 @@ High-frequency rendering & template:
 
 OOXML / patching / comments:
 
-- `scripts/comment.py` — insert Word comments into an unpacked document.
+- `scripts/comment.py` — insert Word comments (unpacked dir or `.docx` directly; IDs auto-assigned).
 - `scripts/accept_changes.py` — accept all tracked changes (LibreOffice).
-- `scripts/office/unpack.py` — explode a `.docx` into pretty-printed XML.
-- `scripts/office/pack.py` — repackage an unpacked tree, with auto-repair.
-- `scripts/office/validate.py` — XSD-based schema validation for DOCX/PPTX.
+- `scripts/merge_runs.py` — coalesce fragmented runs so text is findable (dir or `.docx`).
+- `scripts/office/validate.py` — XSD-based schema validation for DOCX/PPTX (`--auto-repair`, `--author`).
 - `scripts/office/soffice.py` — LibreOffice wrapper (headless conversion helper).
 
 ## External dependencies

@@ -1,36 +1,165 @@
 """
-Wrapper around LibreOffice (``soffice``) that transparently handles
-sandboxed environments where AF_UNIX sockets are unavailable.
+Helper for running LibreOffice (soffice) in environments where AF_UNIX
+sockets may be blocked (e.g., sandboxed VMs).  Detects the restriction
+at runtime and applies an LD_PRELOAD shim if needed.
 
-The module detects the restriction at startup and, when necessary,
-compiles and injects a tiny C shim via ``LD_PRELOAD``.
+Usage:
+    from office.soffice import run_soffice
 
-Public surface::
-
-    from office.soffice import run_soffice, get_soffice_env
-
-    # Approach A – call soffice directly
     result = run_soffice(["--headless", "--convert-to", "pdf", "input.docx"])
 
-    # Approach B – retrieve an env dict for manual subprocess usage
-    env = get_soffice_env()
-    subprocess.run(["soffice", ...], env=env)
+Call soffice through run_soffice, not through subprocess with get_soffice_env():
+the env dict carries the shim but names no user profile, and a non-root sandbox
+cannot bootstrap the default one -- soffice aborts with "User installation could
+not be completed" and converts nothing. get_soffice_env() stays public for the
+callers that build their own argv (they must pass -env:UserInstallation too).
 """
 
+from __future__ import annotations
+
+import contextlib
 import os
-import pathlib
+import re
+import shutil
 import socket
 import subprocess
 import tempfile
+import zipfile
+from collections.abc import Iterable
+from pathlib import Path
 
 
-# ── Shared-object path for the optional shim ────────────────────────────────
+def get_soffice_env() -> dict:
+    env = os.environ.copy()
+    env["SAL_USE_VCLPLUGIN"] = "svp"
 
-_COMPILED_SHIM = pathlib.Path(tempfile.gettempdir()) / "lo_socket_shim.so"
+    if _needs_shim():
+        shim = _ensure_shim()
+        env["LD_PRELOAD"] = str(shim)
 
-# ── C source for the LD_PRELOAD shim ────────────────────────────────────────
+    return env
 
-_C_SOURCE = r"""
+
+def run_soffice(args: Iterable[str], **kwargs) -> subprocess.CompletedProcess:
+    args = list(args)
+    with contextlib.ExitStack() as stack:
+        if not any(str(a).startswith("-env:UserInstallation") for a in args):
+            profile = stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="lo_profile_", ignore_cleanup_errors=True)
+            )
+            args = [f"-env:UserInstallation={Path(profile).as_uri()}"] + args
+        if _draws_the_document(args):
+            copies = Path(stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="lo_input_", ignore_cleanup_errors=True)
+            ))
+            args = [_without_outside_links(str(a), copies / str(i)) for i, a in enumerate(args)]
+        return subprocess.run(["soffice"] + args, env=get_soffice_env(), **kwargs)
+
+
+
+_SHIM_SO = Path(tempfile.gettempdir()) / "lo_socket_shim.so"
+
+_DRAWN_FORMATS = frozenset(
+    {"pdf", "png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "webp", "svg", "eps", "emf", "wmf"}
+)
+_WEB_OR_MAIL = re.compile(r"^(?:https?|mailto):", re.I)
+_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_NO_RELS = f'<Relationships xmlns="{_RELS_NS}"/>'.encode()
+_MAX_RELS_BYTES = 32 * 1024 * 1024
+
+
+def _draws_the_document(args: list) -> bool:
+    for flag, value in zip(args, args[1:]):
+        if str(flag) in ("--convert-to", "-convert-to"):
+            return str(value).split(":")[0].lower() in _DRAWN_FORMATS
+    return False
+
+
+def _cut_outside_links(rels: bytes) -> bytes | None:
+    from defusedxml import ElementTree
+
+    try:
+        root = ElementTree.fromstring(rels)
+    except (ElementTree.ParseError, ValueError, LookupError):
+        return _NO_RELS
+    cut = False
+    for entry in root.iter():
+        if entry.get("TargetMode", "Internal") == "Internal":
+            continue
+        if _WEB_OR_MAIL.match(entry.get("Target", "")):
+            continue
+        entry.set("TargetMode", "External")
+        entry.set("Target", "about:blank")
+        cut = True
+    if not cut:
+        return None
+    for element in root.iter():
+        element.tag = element.tag.rsplit("}", 1)[-1]
+    root.set("xmlns", _RELS_NS)
+    return ElementTree.tostring(root)
+
+
+def _without_outside_links(arg: str, folder: Path) -> str:
+
+    if not os.path.isfile(arg) or not zipfile.is_zipfile(arg):
+        return arg
+    with open(arg, "rb") as file:
+        if file.read(4) != b"PK\x03\x04":  
+            return arg
+    with zipfile.ZipFile(arg) as package:
+        cut = {}
+        for member in package.infolist():
+            if member.filename.lower().endswith(".rels"):
+                try:
+                    data = package.read(member) if member.file_size <= _MAX_RELS_BYTES else None
+                except Exception:  
+                    data = None
+                rels = _NO_RELS if data is None else _cut_outside_links(data)
+                if rels is not None:
+                    cut[member.filename] = rels
+        if not cut:
+            return arg
+        folder.mkdir()
+        copy = folder / Path(arg).name
+        with zipfile.ZipFile(copy, "w") as out:
+            for member in package.infolist():
+                entry = zipfile.ZipInfo(member.filename, member.date_time)
+                entry.compress_type = member.compress_type
+                if member.filename in cut:
+                    entry.compress_type = zipfile.ZIP_DEFLATED  
+                    out.writestr(entry, cut[member.filename])
+                else:
+                    with package.open(member) as source, out.open(entry, "w", force_zip64=True) as target:
+                        shutil.copyfileobj(source, target)
+    return str(copy)
+
+
+def _needs_shim() -> bool:
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.close()
+        return False
+    except OSError:
+        return True
+
+
+def _ensure_shim() -> Path:
+    if _SHIM_SO.exists():
+        return _SHIM_SO
+
+    src = Path(tempfile.gettempdir()) / "lo_socket_shim.c"
+    src.write_text(_SHIM_SOURCE, encoding="utf-8")
+    subprocess.run(
+        ["gcc", "-shared", "-fPIC", "-o", str(_SHIM_SO), str(src), "-ldl"],
+        check=True,
+        capture_output=True,
+    )
+    src.unlink()
+    return _SHIM_SO
+
+
+
+_SHIM_SOURCE = r"""
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -140,55 +269,8 @@ int close(int fd) {
 """
 
 
-# ── Internal helpers ─────────────────────────────────────────────────────────
-
-def _unix_sockets_blocked() -> bool:
-    """Return *True* when the OS refuses to create AF_UNIX sockets."""
-    try:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.close()
-        return False
-    except OSError:
-        return True
-
-
-def _build_shim_if_missing() -> pathlib.Path:
-    """Compile the C shim to a shared object when it is not yet present."""
-    if _COMPILED_SHIM.exists():
-        return _COMPILED_SHIM
-
-    c_file = pathlib.Path(tempfile.gettempdir()) / "lo_socket_shim.c"
-    c_file.write_text(_C_SOURCE)
-    subprocess.run(
-        ["gcc", "-shared", "-fPIC", "-o", str(_COMPILED_SHIM), str(c_file), "-ldl"],
-        check=True,
-        capture_output=True,
-    )
-    c_file.unlink()
-    return _COMPILED_SHIM
-
-
-# ── Public API ───────────────────────────────────────────────────────────────
-
-def get_soffice_env() -> dict:
-    """Return an ``env`` dict suitable for ``subprocess.run(env=…)``."""
-    merged = os.environ.copy()
-    merged["SAL_USE_VCLPLUGIN"] = "svp"
-
-    if _unix_sockets_blocked():
-        merged["LD_PRELOAD"] = str(_build_shim_if_missing())
-
-    return merged
-
-
-def run_soffice(args: list[str], **kw) -> subprocess.CompletedProcess:
-    """Launch ``soffice`` with the correct environment and given *args*."""
-    return subprocess.run(["soffice"] + args, env=get_soffice_env(), **kw)
-
-
-# ── CLI passthrough ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import sys
-    outcome = run_soffice(sys.argv[1:])
-    sys.exit(outcome.returncode)
+    result = run_soffice(sys.argv[1:])
+    sys.exit(result.returncode)
