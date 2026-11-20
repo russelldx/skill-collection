@@ -20,7 +20,7 @@ description: 轻量会话交接，适用于编程、作业、写作、调研等�
 - 用户指定目录/文档时优先按指定目标定位；否则沿用已有映射，在已知同任务的全局交接目录、项目 `.handoff/`、中文交接/实施计划文档、AGENTS 引用中寻找。存在歧义才问，不默认取最近修改的文档。
 - 项目内新增并行功能用 `.handoff/<功能名>/`，每个目录各有 HANDOFF.md、STATE.json、archive/、备份和锁；TEAM.md/RECENT.jsonl 仅在需要且获准时建立。所有命令的目录参数都指向选中的功能子目录。`--doc` 仅选择该目录的主文档，不能隔离共用 STATE 的多份文档。
 - 原单功能布局不搬迁。已知目标就直接读；不知道有哪些功能才运行 `status "<已授权根目录>" --max-depth 1`，默认最多20条，按 DIRECTORY 选择。不要逐个加载正文，不新增总索引或全局“当前功能”文件。
-- 未指定具体工程时，默认落 `C:\Users\18467\.qoder\handoffs\<YYYY-MM-DD>--<chatId>-<slug>\`；Desktop 的 per-session cwd、agent 自建目录不算用户指定工程，细则按需读 `~/.qoder/handoffs/README.md`。
+- 未指定具体工程时，默认落 `~/.qoder/handoffs/<YYYY-MM-DD>--<chatId>-<slug>/`；Desktop 的 per-session cwd、agent 自建目录不算用户指定工程，细则按需读 `~/.qoder/handoffs/README.md`。
 - 目录隔离交接，不隔离代码：不同功能同时改同一文件仍须协调。编程场景可关联分支/worktree，但不自动建、切换或合并；跨 worktree 接续同一功能须明确既有交接绝对路径，不据分支名猜目录。非编程任务不引入 git。
 
 ## 日常流程

@@ -22,7 +22,8 @@
 ## 2. 命令
 
 ```bash
-H="C:/Users/18467/.qoder/skills/session-handoff/scripts/handoff.py"
+# H 换成你本机 session-handoff 的实际安装路径
+H="<session-handoff 安装目录>/scripts/handoff.py"
 C=".handoff/_coord"
 
 # 认领本批文件（整批成功或整批拒绝）
