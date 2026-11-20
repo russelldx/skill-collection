@@ -64,7 +64,7 @@ bash validate-skills.sh
 PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -p 'test_repository_validation.py' -v
 PYTHONUTF8=1 python -B -m unittest discover -s tests -p 'test_skill_sync.py' -v
 PYTHONUTF8=1 python -B -m unittest discover -s tests -p 'test_mcp_smoke.py' -v
-node --test skills/web-access/scripts/audit-safety.test.mjs
+node --test skills/web-access/scripts/*.test.mjs
 PYTHONUTF8=1 python -B skills/course-assignment/scripts/test_verify_media.py
 PYTHONUTF8=1 python -B skills/course-assignment/scripts/test_gen_docx.py
 PYTHONUTF8=1 python -B skills/docx-meta/scripts/test_docx_meta.py
@@ -77,7 +77,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | 同步引擎与 hook | 55 项通过 | 临时 Git fixture：无变化/双方变化/无基线/刻意分叉/来源缺失与竞争/链接与越界拒绝/归档复活拒绝/敏感文件排除/部分暂存/并发修改/失败回退，以及审阅导出时绑定哈希与方向、容忍 `core.autocrlf` 检出时产生的字节差异；每次都比较执行前后的文件与索引哈希；也包含真实执行 Bash 包装脚本的测试。包装器用例原先把活动入口数写死为 55，修改默认值就会失败；现在根据 `hook.__defaults__[0]` 确定 fixture 数量与断言。pre-commit 不运行本套件，所以入口数变更后须手工运行一次 |
 | LibreOffice 重算 | 无自动化覆盖 | 原 mock 回归 `test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误（`recalc.signal` 已不存在），已删除；`recalc.py` 本体仍在，重算只在"真实环境中仍需验证"一节记录 |
 | MCP smoke 检查器 | 25 项通过 | 注入内存流与假会话：初始化、分页、超时、清理、isError、结构校验、启动器拒绝、证据标签；不外连 |
-| web-access 浏览器安全 | 本次 2 项通过、10 项失败（旧记录为 12 项通过） | docx-meta 修改前执行即失败，未修改本模块；失败涉及浏览器选择、身份复核和授权提示，具体用例见下节。不启动浏览器或监听端口 |
+| web-access 上游套件 | 227 项通过、3 项跳过（11-20，v2.6.0） | 8 个上游测试文件：浏览器发现/探测、CDP 连接与代理、check-deps 身份复核与偏好、page-frames、proxy-maintenance、user-data 迁移；夹具在临时目录生成，不启动真实浏览器或监听端口。测试夹具的 `--import` 裸路径在 Windows 报 `ERR_UNSUPPORTED_ESM_URL_SCHEME`，已本地补 `pathToFileURL`（5 处，属本地定制）。旧 `audit-safety.test.mjs` 已退休（见下节） |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
 | 课程 DOCX 生成 | 3 项通过，无跳过 | 缺依赖预检查，以及使用现有 docx 包真实生成包含表格和图片的 DOCX，再校验媒体 |
 | DOCX 元数据清理 | 仓库侧与安装侧各 26 项通过 | 保留原清理/注册/时间线/作者覆盖测试；新增初次基线、WPS 清零/缺失恢复、绝对覆盖与手动追加、原生累计值去重、增删改文本、重复文字小改动、重复运行与空闲时间不计入、纯排版不编造耗时、改名续接、页数覆盖、只读预演、损坏/锁定基线拒绝；通过注入文件替换失败，验证基线不前移；也验证基线保存失败时，不丢失修改时间锚点。样本与状态均在临时目录 |
@@ -109,6 +109,14 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 对于上游重构后已删除的回归测试与文档，本轮按"先提交删除、再退休同步基线"处理，不在仓库里留下必然失败或自我矛盾的条目。`anthropic-xlsx/scripts/test_recalc.py` 对重构后的 `recalc.py` 跑出 1 项失败 + 8 项错误，因此连同其命令行一起撤下（见上表）。同时删除了 `anthropic-pptx`/`anthropic-xlsx` 的 `scripts/office/{pack,unpack}.py` 与 `helpers/{merge_runs,simplify_redlines}.py`：相关能力已并入 `helpers/__init__.py` 的 `safe_extract`/`rezip`，新 `SKILL.md` 改用 `zipfile.extractall` 与 `zip -Xr` 一行命令。另外也删除了 `anthropic-pptx/editing.md`、`pptxgenjs.md`：内容已合并进精简后的 `SKILL.md`，而且 `editing.md` 仍在指导读者调用上游已不存在的 `pack.py`/`unpack.py`。`anthropic-docx` 保留自己的一份 `pack.py`/`unpack.py`，不受影响。被删文件均可从提交 `d3f170b` 取回；如需把 Smart Quotes、Multi-Item Content、Template Adaptation 或 pptxgenjs 图表示例重新讲清楚，应显式提出，再将内容补回 `SKILL.md`，而不是保留过期副本。
 
 此前会话曾发现：错误的同步 hook 用旧版本覆盖了提交 `d6ed444` 的树，导致其中未包含审计修复。其暂存对象（64 个 Git blob）仍存在于本地对象库。本轮已保存恢复前快照，并精确恢复了 7 个安全相关脚本（重算、POI 拒绝入口、浏览器、DOCX 生成），上述测试就是检查这些恢复结果的回归规格。其余候选参考文档能否合入，仍需逐项复核；未恢复不等于已丢失。
+
+### web-access v2.6.0 更新与审计测试退休（2026-11-20）
+
+web-access 合并更新至上游 `d173a75`（v2.6.0，浏览器发现重做、用户数据迁出 Skill 目录到 `~/.web-access/`、iframe 能力）。本地 `audit-safety.test.mjs` 针对 v2.5.4 内部 API，10-23 那轮就已 10/12 失败（见上节），本轮对 v2.6.0 全 12 项失败，均为 API 过期而非安全回归；其断言面（严格身份不匹配、复用不杀进程、持久化前询问、身份未知拒绝复用等）已由上游 `check-deps.test.mjs` 等 8 个测试文件覆盖，故退休该文件，回归命令行改为 `node --test skills/web-access/scripts/*.test.mjs`。被删文件可从提交 `b3d20f7` 之前的历史取回。
+
+上游测试夹具在 Windows 有一处平台 bug：`spawn(node, ['--import', <裸绝对路径>, ...])` 报 `ERR_UNSUPPORTED_ESM_URL_SCHEME`。本地对 5 个测试文件补 `pathToFileURL(...).href`（browser-discovery/browser-probe/cdp-proxy/check-deps/proxy-maintenance），补丁后全套 227 过 0 败 3 跳过。这 5 处是本地定制，下次上游更新这些测试文件时要重新带上。
+
+上节「anthropic-docx 保留自己的一份 pack.py/unpack.py」已被 11-20 anthropic 更新取代：docx 也迁移到上游新修补管线（zipfile + merge_runs + zip），pack/unpack/helpers 旧脚本一并退休，见提交 `1e910cf`。
 
 ## 文档级静态审计（两批均已完成，修复已写入）
 

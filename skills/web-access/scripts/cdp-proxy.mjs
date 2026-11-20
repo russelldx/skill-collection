@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// CDP Proxy - 通过 HTTP API 操控用户日常浏览器（Chrome / Edge / Chromium 等）
-// 要求：浏览器已开启 remote debugging（chrome://inspect#remote-debugging toggle）
+// CDP Proxy - 通过 HTTP API 操控用户日常浏览器（任意 Chromium 内核浏览器，按数据目录选定）
+// 要求：浏览器已开启 remote debugging（chrome://inspect/#remote-debugging toggle，Edge 为 edge://）
 // Node.js 22+（使用原生 WebSocket）
 
 import http from 'node:http';
@@ -8,8 +8,10 @@ import { URL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import net from 'node:net';
-import { selectBrowser, findFallbackPort } from './browser-discovery.mjs';
+import { createHash, randomUUID } from 'node:crypto';
+import { createCdpConnection } from './cdp-connection.mjs';
+import { selectBrowser, explainUnavailable } from './browser-discovery.mjs';
+import { createPageFrames, FrameError } from './page-frames.mjs';
 
 // --- 解析命令行 --browser 参数（本次启动用哪个浏览器）---
 function parseBrowserArg() {
@@ -23,13 +25,24 @@ function parseBrowserArg() {
 const BROWSER_OVERRIDE = parseBrowserArg();
 
 const PORT = parseInt(process.env.CDP_PROXY_PORT || '3456');
-let ws = null;
-let cmdId = 0;
-const pending = new Map(); // id -> {resolve, timer}
 const sessions = new Map(); // targetId -> sessionId
 const managedTabs = new Map(); // targetId -> { lastAccessed: number }
 const TAB_IDLE_TIMEOUT = parseInt(process.env.CDP_TAB_IDLE_TIMEOUT || '900000'); // 15 min default
 const CLEANUP_INTERVAL = 60000; // sweep every 60s
+const INSTANCE_ID = randomUUID();
+const STARTED_AT = new Date().toISOString();
+const RUNNING_REVISION = createHash('sha256')
+  .update(fs.readFileSync(new URL(import.meta.url)))
+  .update(fs.readFileSync(new URL('./cdp-connection.mjs', import.meta.url)))
+  .digest('hex').slice(0, 12);
+let activeRequests = 0;
+let maintenance = false;
+let cleanupTimer = null;
+let shutdownPromise = null;
+
+function lifecycleLog(message) {
+  console.log(`[${new Date().toISOString()} pid=${process.pid} instance=${INSTANCE_ID}] [CDP Proxy] ${message}`);
+}
 
 // --- WebSocket 兼容层 ---
 let WS;
@@ -47,56 +60,36 @@ if (typeof globalThis.WebSocket !== 'undefined') {
   }
 }
 
-// proxy 启动时连接到的浏览器（用于 /health 暴露给 check-deps 比较）
-let connectedBrowser = null; // { id, label, source }
+// proxy 启动时连接到的浏览器（用于 /health 暴露给 check-deps 与维护命令比较）
+let connectedBrowser = null; // { id: 数据目录路径, label: 显示名, source }
 
-// pin 首次成功连接的浏览器 id。重连时只接受同一 id，避免悄悄降级到别的浏览器。
-let pinnedBrowserId = null;
+// pin 首次成功连接的浏览器身份（数据目录）。重连时只接受同一身份，避免悄悄换到别的浏览器。
+let pinnedBrowser = null; // { id, label }
 
-// --- 自动发现浏览器调试端口 ---
-// 决策完全委派给 browser-discovery.selectBrowser；此处只做日志和返回结构包装。
+// --- 发现浏览器调试端口 ---
+// 决策完全委派给 browser-discovery.selectBrowser；此处只做 pin 校验、日志和返回结构包装。
+// 不可用一律抛错（由下一次请求重试），不扫描固定端口、不换浏览器。
 async function discoverChromePort() {
   const result = await selectBrowser(BROWSER_OVERRIDE);
-  if (result.kind === 'ok') {
-    if (pinnedBrowserId && pinnedBrowserId !== result.browser.id) {
-      throw new Error(
-        `本次连接的浏览器已经是 ${pinnedBrowserId}，不会自动切到 ${result.browser.id}。` +
-        `如果想换成 ${result.browser.id}，请先在终端运行 pkill -f cdp-proxy.mjs 重置。`
-      );
-    }
-    pinnedBrowserId = result.browser.id;
-    connectedBrowser = { id: result.browser.id, label: result.browser.label, source: result.source };
-    const tag = result.source === 'override' ? '[--browser 指定]' : '[config.env 偏好]';
-    console.log(`[CDP Proxy] 选用 ${result.browser.label} (端口 ${result.browser.port}${result.browser.wsPath ? '，带 wsPath' : ''}) ${tag}`);
-    return { port: result.browser.port, wsPath: result.browser.wsPath };
+  if (result.kind === 'config-error') throw new Error(result.message);
+  if (result.kind === 'unset') {
+    throw new Error('尚未设置浏览器。请先运行 node scripts/check-deps.mjs 完成首次配置（写入 WEB_ACCESS_BROWSER），或启动时指定 --browser <数据目录路径>。');
   }
-  // mismatch：有显式偏好但未检测到 —— 硬错，绝不降级
-  if (result.kind === 'mismatch') {
-    const expected = result.override || result.configured;
-    const src = result.source === 'override' ? '本次指定' : '默认偏好';
+  if (result.kind === 'unavailable') {
+    const steps = explainUnavailable(result).join(' ');
+    const switchHint = pinnedBrowser ? '若想换成其他浏览器，请等共享任务完成，通过 proxy-maintenance.mjs stop 停止后再指定 --browser。' : '';
+    throw new Error(`${steps} ${switchHint}`.trim());
+  }
+  if (pinnedBrowser && pinnedBrowser.id !== result.browser.id) {
     throw new Error(
-      `${src}的浏览器是 "${expected}"，但没连上。Agent 处理顺序：` +
-      `(1) 先用系统命令打开 ${expected}（按平台选择，如 macOS 的 open -a），稍等后重试请求；` +
-      `(2) 若仍失败，说明远程调试开关没启用 —— 告知用户在地址栏访问 ${expected}://inspect/#remote-debugging 勾选 "Allow remote debugging for this browser instance"。`
+      `本次连接的浏览器已经是 ${pinnedBrowser.label}（${pinnedBrowser.id}），不会自动切到 ${result.browser.label}（${result.browser.id}）。` +
+      `如果想换浏览器，请等共享任务完成，通过 proxy-maintenance.mjs stop 停止后再指定 --browser。`
     );
   }
-  // 已 pin 过浏览器（如首次连上 edge 后 edge 退出）：拒绝任何 fallback
-  if (pinnedBrowserId) {
-    throw new Error(
-      `本次连接的浏览器是 ${pinnedBrowserId}，但现在没连上。Agent 处理顺序：` +
-      `(1) 先用系统命令打开 ${pinnedBrowserId}（按平台选择），稍等后重试请求；` +
-      `(2) 若仍失败，告知用户在地址栏访问 ${pinnedBrowserId}://inspect/#remote-debugging 重新勾选允许。` +
-      `若想换成其他浏览器，请先在终端运行 pkill -f cdp-proxy.mjs 重置。`
-    );
-  }
-  // 仅在「从未成功连接 + 无偏好/override」时允许固定端口兜底（手动 --remote-debugging-port 启动场景）
-  const fallbackPort = await findFallbackPort();
-  if (fallbackPort !== null) {
-    connectedBrowser = { id: 'unknown', label: '未知（通过手动调试端口连接）', source: 'fallback' };
-    console.log(`[CDP Proxy] 通过手动调试端口连接: ${fallbackPort}`);
-    return { port: fallbackPort, wsPath: null };
-  }
-  return null;
+  connectedBrowser = { id: result.browser.id, label: result.browser.label, source: result.source };
+  const tag = result.source === 'override' ? '[--browser 指定]' : '[config.env 偏好]';
+  console.log(`[CDP Proxy] 选用 ${result.browser.label}（${result.browser.id}，端口 ${result.browser.port}${result.browser.wsPath ? '，带 wsPath' : ''}）${tag}`);
+  return { port: result.browser.port, wsPath: result.browser.wsPath };
 }
 
 function getWebSocketUrl(port, wsPath) {
@@ -104,116 +97,50 @@ function getWebSocketUrl(port, wsPath) {
   return `ws://127.0.0.1:${port}/devtools/browser`;
 }
 
-// --- WebSocket 连接管理 ---
+// --- 连接唯一所有者：发现、握手和 CDP 请求共用同一生命周期 ---
 let chromePort = null;
-let chromeWsPath = null;
-
-let connectingPromise = null;
-async function connect() {
-  if (ws && (ws.readyState === WS.OPEN || ws.readyState === 1)) return;
-  if (connectingPromise) return connectingPromise;  // 复用进行中的连接
-
-  if (!chromePort) {
+const connection = createCdpConnection({
+  WebSocketImpl: WS,
+  discoverUrl: async () => {
     const discovered = await discoverChromePort();
-    if (!discovered) {
-      throw new Error(
-        'Chrome 未开启远程调试端口。请用以下方式启动 Chrome：\n' +
-        '  macOS: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\n' +
-        '  Linux: google-chrome --remote-debugging-port=9222\n' +
-        '  或在 chrome://flags 中搜索 "remote debugging" 并启用'
-      );
-    }
     chromePort = discovered.port;
-    chromeWsPath = discovered.wsPath;
-  }
-
-  const wsUrl = getWebSocketUrl(chromePort, chromeWsPath);
-  if (!wsUrl) throw new Error('无法获取 Chrome WebSocket URL');
-
-  return connectingPromise = new Promise((resolve, reject) => {
-    ws = new WS(wsUrl);
-
-    const onOpen = () => {
-      cleanup();
-      connectingPromise = null;
-      console.log(`[CDP Proxy] 已连接浏览器 (端口 ${chromePort})`);
-      resolve();
-    };
-    const onError = (e) => {
-      cleanup();
-      connectingPromise = null;
-      ws = null;
-      chromePort = null;
-      chromeWsPath = null;
-      const msg = e.message || e.error?.message || '连接失败';
-      console.error('[CDP Proxy] 连接错误:', msg, '（端口缓存已清除，下次将重新发现）');
-      reject(new Error(msg));
-    };
-    const onClose = () => {
-      console.log('[CDP Proxy] 连接断开');
-      ws = null;
-      chromePort = null; // 重置端口缓存，下次连接重新发现
-      chromeWsPath = null;
-      sessions.clear();
-      managedTabs.clear();
-    };
-    const onMessage = (evt) => {
-      const data = typeof evt === 'string' ? evt : (evt.data || evt);
-      const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
-
-      if (msg.method === 'Target.attachedToTarget') {
-        const { sessionId, targetInfo } = msg.params;
-        sessions.set(targetInfo.targetId, sessionId);
-      }
-      // 拦截页面对 Chrome 调试端口的探测请求（反风控）
-      if (msg.method === 'Fetch.requestPaused') {
-        const { requestId, sessionId: sid } = msg.params;
-        sendCDP('Fetch.failRequest', { requestId, errorReason: 'ConnectionRefused' }, sid).catch(() => {});
-      }
-      if (msg.id && pending.has(msg.id)) {
-        const { resolve, timer } = pending.get(msg.id);
-        clearTimeout(timer);
-        pending.delete(msg.id);
-        resolve(msg);
-      }
-    };
-
-    function cleanup() {
-      ws.removeEventListener?.('open', onOpen);
-      ws.removeEventListener?.('error', onError);
+    return getWebSocketUrl(discovered.port, discovered.wsPath);
+  },
+  onConnect: () => {
+    pinnedBrowser = { id: connectedBrowser.id, label: connectedBrowser.label };
+    lifecycleLog(`已连接浏览器 (端口 ${chromePort})`);
+  },
+  onDisconnect: (error) => {
+    chromePort = null;
+    sessions.clear();
+    managedTabs.clear();
+    portGuardedSessions.clear();
+    lifecycleLog(`连接已失效：${error.message}`);
+  },
+  onDiagnostic: (error) => lifecycleLog(`连接诊断：${error.message}`),
+  onEvent: (msg) => {
+    if (msg.method === 'Target.attachedToTarget') {
+      const { sessionId, targetInfo } = msg.params;
+      sessions.set(targetInfo.targetId, sessionId);
     }
-
-    // 兼容 Node 原生 WebSocket 和 ws 模块的事件 API
-    if (ws.on) {
-      ws.on('open', onOpen);
-      ws.on('error', onError);
-      ws.on('close', onClose);
-      ws.on('message', onMessage);
-    } else {
-      ws.addEventListener('open', onOpen);
-      ws.addEventListener('error', onError);
-      ws.addEventListener('close', onClose);
-      ws.addEventListener('message', onMessage);
+    // 标签页关闭、跨进程 iframe 换进程或被移除时，浏览器解除对应 session；从缓存删除，下次使用时重新 attach。
+    if (msg.method === 'Target.detachedFromTarget') {
+      const { sessionId, targetId } = msg.params;
+      for (const [id, sid] of sessions) {
+        if (sid === sessionId && (!targetId || id === targetId)) sessions.delete(id);
+      }
+      portGuardedSessions.delete(sessionId);
     }
-  });
-}
-
-function sendCDP(method, params = {}, sessionId = null) {
-  return new Promise((resolve, reject) => {
-    if (!ws || (ws.readyState !== WS.OPEN && ws.readyState !== 1)) {
-      return reject(new Error('WebSocket 未连接'));
+    if (msg.method === 'Fetch.requestPaused') {
+      const { requestId, sessionId: sid } = msg.params;
+      sendCDP('Fetch.failRequest', { requestId, errorReason: 'ConnectionRefused' }, sid)
+        .catch(error => lifecycleLog(`端口探测拦截失败：${error.message}`));
     }
-    const id = ++cmdId;
-    const msg = { id, method, params };
-    if (sessionId) msg.sessionId = sessionId;
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error('CDP 命令超时: ' + method));
-    }, 30000);
-    pending.set(id, { resolve, timer });
-    ws.send(JSON.stringify(msg));
-  });
-}
+  },
+});
+
+const connect = () => connection.connect();
+const sendCDP = (method, params = {}, sessionId = null) => connection.send(method, params, sessionId);
 
 // 已启用端口拦截的 session 集合（避免重复启用）
 const portGuardedSessions = new Set();
@@ -230,6 +157,9 @@ async function ensureSession(targetId) {
   }
   throw new Error('attach 失败: ' + JSON.stringify(resp.error));
 }
+
+// 页面中的 iframe（列举、执行、坐标点击路由）；跨进程 iframe 的子 session 同样经 ensureSession 进入缓存
+const pageFrames = createPageFrames({ send: (...args) => sendCDP(...args), ensureSession });
 
 // 拦截页面对 Chrome 调试端口的探测（反风控）
 // 只拦截 127.0.0.1:{chromePort} 的请求，不影响其他任何本地服务
@@ -253,7 +183,7 @@ function touchTab(targetId) {
 }
 
 async function cleanupIdleTabs() {
-  if (!ws || (ws.readyState !== WS.OPEN && ws.readyState !== 1)) return;
+  if (!connection.connected) return;
   const now = Date.now();
   for (const [targetId, info] of managedTabs) {
     if (now - info.lastAccessed < TAB_IDLE_TIMEOUT) continue;
@@ -265,7 +195,7 @@ async function cleanupIdleTabs() {
 }
 
 async function closeAllManagedTabs() {
-  if (!ws || (ws.readyState !== WS.OPEN && ws.readyState !== 1)) return;
+  if (!connection.connected) return;
   const targets = [...managedTabs.keys()];
   for (const targetId of targets) {
     try { await sendCDP('Target.closeTarget', { targetId }); } catch { /* ignore */ }
@@ -328,10 +258,11 @@ const server = http.createServer(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
+  let operationActive = false;
   try {
     // /health 不需要连接浏览器
     if (pathname === '/health') {
-      const connected = ws && (ws.readyState === WS.OPEN || ws.readyState === 1);
+      const connected = connection.connected;
       res.end(JSON.stringify({
         status: 'ok',
         connected,
@@ -339,9 +270,58 @@ const server = http.createServer(async (req, res) => {
         sessions: sessions.size,
         managedTabs: managedTabs.size,
         chromePort,
+        pid: process.pid,
+        instanceId: INSTANCE_ID,
+        startedAt: STARTED_AT,
+        runningRevision: RUNNING_REVISION,
+        connectionState: connection.state,
+        connectionAttempts: connection.attemptCount,
+        pendingCommands: connection.pendingCount,
+        activeRequests,
+        maintenance,
       }));
       return;
     }
+
+    // 维护由明确的本机命令触发；普通浏览器页面不能请求关闭共享服务。
+    if (pathname === '/shutdown') {
+      if (req.method !== 'POST' || req.headers.origin) {
+        res.statusCode = 403;
+        res.end(JSON.stringify({ error: '请使用本机维护命令' }));
+        return;
+      }
+      let body;
+      try { body = JSON.parse(await readBody(req)); }
+      catch {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '维护请求需要 instanceId JSON' }));
+        return;
+      }
+      if (body?.instanceId !== INSTANCE_ID) {
+        res.statusCode = 409;
+        res.end(JSON.stringify({ error: '服务实例已变化，请重新检查', instanceId: INSTANCE_ID }));
+        return;
+      }
+      if (!maintenance && (activeRequests > 0 || managedTabs.size > 0 || connection.pendingCount > 0 ||
+          connection.state === 'discovering' || connection.state === 'connecting')) {
+        res.statusCode = 409;
+        res.end(JSON.stringify({ error: 'busy', activeRequests, managedTabs: managedTabs.size, pendingCommands: connection.pendingCount }));
+        return;
+      }
+      maintenance = true;
+      res.once('finish', () => { void shutdown('维护命令'); });
+      res.statusCode = 202;
+      res.end(JSON.stringify({ status: 'stopping', instanceId: INSTANCE_ID }));
+      return;
+    }
+
+    if (maintenance) {
+      res.statusCode = 503;
+      res.end(JSON.stringify({ error: '服务正在维护，请稍后重试' }));
+      return;
+    }
+    activeRequests++;
+    operationActive = true;
 
     await connect();
 
@@ -420,16 +400,32 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true }));
     }
 
-    // POST /eval?target=xxx - 执行 JS
+    // GET /frames?target=xxx - 列出页面主文档中的 iframe（frameId、网址、是否跨进程与定位线索）
+    else if (pathname === '/frames') {
+      if (!q.target) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '需要 target' }));
+        return;
+      }
+      res.end(JSON.stringify(await pageFrames.listFrames(q.target), null, 2));
+    }
+
+    // POST /eval?target=xxx[&frame=frameId] - 执行 JS；带 frame 时在该 iframe 中执行（frameId 取自 /frames）
     else if (pathname === '/eval') {
-      const sid = await ensureSession(q.target);
+      let sid;
+      let contextId;
+      if (q.frame !== undefined) ({ sessionId: sid, contextId } = await pageFrames.frameContext(q.target, q.frame));
+      else sid = await ensureSession(q.target);
       const body = await readBody(req);
       const expr = body || q.expr || 'document.title';
       const resp = await sendCDP('Runtime.evaluate', {
         expression: expr,
         returnByValue: true,
         awaitPromise: true,
+        ...(contextId ? { contextId } : {}),
       }, sid);
+      // 不带 frame 时保持原有返回方式不变；带 frame 时如实报告 CDP 错误
+      if (contextId && resp.error) throw new Error('Runtime.evaluate: ' + resp.error.message);
       if (resp.result?.result?.value !== undefined) {
         res.end(JSON.stringify({ value: resp.result.result.value }));
       } else if (resp.result?.exceptionDetails) {
@@ -438,6 +434,32 @@ const server = http.createServer(async (req, res) => {
       } else {
         res.end(JSON.stringify(resp.result));
       }
+    }
+
+    // GET /clickXY?target=xxx&x=120&y=90 - 按视口坐标真实鼠标点击；逐层进入命中的 iframe（跨进程的换算坐标后发给其子 session），不激活标签页
+    // clicked 只表示鼠标事件已发出；坐标不在视口内时 400，不发事件
+    else if (pathname === '/clickXY') {
+      const x = Number(q.x);
+      const y = Number(q.y);
+      if (!q.target || !q.x?.trim() || !q.y?.trim() || !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '需要 target，以及有限的非负 x、y 视口坐标' }));
+        return;
+      }
+      const route = await pageFrames.routePoint(q.target, x, y);
+      for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
+        const resp = await sendCDP('Input.dispatchMouseEvent', {
+          type, x: route.x, y: route.y,
+          button: type === 'mouseMoved' ? 'none' : 'left',
+          buttons: type === 'mousePressed' ? 1 : 0,
+          clickCount: type === 'mouseMoved' ? 0 : 1,
+        }, route.sessionId);
+        if (resp.error) throw new Error('Input.dispatchMouseEvent: ' + resp.error.message);
+      }
+      res.end(JSON.stringify({
+        clicked: true, x, y,
+        ...(route.frameId ? { frameId: route.frameId, crossProcess: route.crossProcess, depth: route.depth } : {}),
+      }));
     }
 
     // POST /click?target=xxx - 点击（body 为 CSS 选择器）
@@ -606,69 +628,76 @@ const server = http.createServer(async (req, res) => {
           '/navigate?target=': 'POST body=URL - 导航（自动等待加载）',
           '/back?target=': 'GET - 后退',
           '/info?target=': 'GET - 页面标题/URL/状态',
-          '/eval?target=': 'POST body=JS表达式 - 执行 JS',
+          '/frames?target=': 'GET - 列出页面中的 iframe（frameId、网址、是否跨进程）',
+          '/eval?target=&frame=': 'POST body=JS表达式 - 执行 JS（frame 可选，取自 /frames）',
           '/click?target=': 'POST body=CSS选择器 - 点击元素',
+          '/clickAt?target=': 'POST body=CSS选择器 - 真实鼠标点击',
+          '/clickXY?target=&x=&y=': 'GET - 按视口坐标真实鼠标点击（可点中跨进程 iframe）',
+          '/setFiles?target=': 'POST body=JSON - 设置文件输入',
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
           '/screenshot?target=&file=': 'GET - 截图',
         },
       }));
     }
   } catch (e) {
-    res.statusCode = 500;
+    res.statusCode = e instanceof FrameError ? 400 : 500;
     res.end(JSON.stringify({ error: e.message }));
+  } finally {
+    // 客户端断开不会取消浏览器动作；以 handler 完成结算，避免维护误停后台操作。
+    if (operationActive) activeRequests--;
   }
 });
 
-// 检查端口是否被占用
-function checkPortAvailable(port) {
-  return new Promise((resolve) => {
-    const s = net.createServer();
-    s.once('error', () => resolve(false));
-    s.once('listening', () => { s.close(); resolve(true); });
-    s.listen(port, '127.0.0.1');
-  });
-}
-
+// 服务端口的原子绑定决定唯一实例，不用先探测再绑定的竞态窗口。
 async function main() {
-  // 检查是否已有 proxy 在运行
-  const available = await checkPortAvailable(PORT);
-  if (!available) {
-    // 验证已有实例是否健康
-    try {
-      const ok = await new Promise((resolve) => {
-        http.get(`http://127.0.0.1:${PORT}/health`, { timeout: 2000 }, (res) => {
-          let d = '';
-          res.on('data', c => d += c);
-          res.on('end', () => resolve(d.includes('"ok"')));
-        }).on('error', () => resolve(false));
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(PORT, '127.0.0.1', () => {
+        server.removeListener('error', reject);
+        resolve();
       });
-      if (ok) {
-        console.log(`[CDP Proxy] 已有实例运行在端口 ${PORT}，退出`);
+    });
+  } catch (error) {
+    if (error.code === 'EADDRINUSE') {
+      let existing;
+      try {
+        const response = await fetch(`http://127.0.0.1:${PORT}/health`, { signal: AbortSignal.timeout(2000) });
+        if (response.ok) existing = await response.json();
+      } catch { /* 无法确认占用者时明确失败，不连接浏览器。 */ }
+      if (existing?.status === 'ok') {
+        lifecycleLog(`复用端口 ${PORT} 的已有实例，本启动进程退出`);
         process.exit(0);
       }
-    } catch { /* 端口占用但非 proxy，继续报错 */ }
-    console.error(`[CDP Proxy] 端口 ${PORT} 已被占用`);
-    process.exit(1);
+    }
+    throw error;
   }
-
-  server.listen(PORT, '127.0.0.1', () => {
-    console.log(`[CDP Proxy] 运行在 http://localhost:${PORT}`);
-    // 启动时尝试连接 Chrome（非阻塞）
-    connect().catch(e => console.error('[CDP Proxy] 初始连接失败:', e.message, '（将在首次请求时重试）'));
-  });
-
-  // 定时清理闲置 tab
-  const cleanupTimer = setInterval(cleanupIdleTabs, CLEANUP_INTERVAL);
+  lifecycleLog(`运行在 http://127.0.0.1:${PORT}，revision=${RUNNING_REVISION}`);
+  cleanupTimer = setInterval(cleanupIdleTabs, CLEANUP_INTERVAL);
   cleanupTimer.unref();
+  process.on('SIGINT', () => { void shutdown('SIGINT'); });
+  process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+  connect().catch(error => lifecycleLog(`初始连接失败：${error.message}（下一次请求可以重试）`));
+}
 
-  const shutdown = async (sig) => {
-    console.log(`[CDP Proxy] ${sig}, cleaning up...`);
+function shutdown(reason) {
+  if (shutdownPromise) return shutdownPromise;
+  maintenance = true;
+  // 先发布整次退出操作，重复维护命令共用同一个结果。
+  shutdownPromise = Promise.resolve().then(async () => {
+    lifecycleLog(`${reason}，正在退出`);
     clearInterval(cleanupTimer);
     await closeAllManagedTabs();
+    connection.close();
+    await new Promise((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve());
+    });
     process.exit(0);
-  };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  }).catch(error => {
+    lifecycleLog(`退出失败：${error.message}`);
+    process.exit(1);
+  });
+  return shutdownPromise;
 }
 
 // 防止未捕获异常导致进程崩溃
@@ -679,4 +708,4 @@ process.on('unhandledRejection', (e) => {
   console.error('[CDP Proxy] 未处理拒绝:', e?.message || e);
 });
 
-main();
+main().catch(error => { lifecycleLog(`启动失败：${error.message}`); process.exit(1); });

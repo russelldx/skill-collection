@@ -5,10 +5,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { userDataPaths } from './user-data.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PATTERNS_DIR = path.join(ROOT, 'references', 'site-patterns');
+const PATTERNS_DIR = userDataPaths().sitePatterns;
 const query = (process.argv[2] || '').trim();
 
 if (!query || !fs.existsSync(PATTERNS_DIR)) {
