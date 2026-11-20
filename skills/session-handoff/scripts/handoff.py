@@ -824,7 +824,7 @@ def _iter_state_files(root, max_depth):
     for dirpath, dirnames, filenames in os.walk(root_abs):
         rel = os.path.relpath(dirpath, root_abs)
         depth = 0 if rel == '.' else rel.count(os.sep) + 1
-        dirnames[:] = [d for d in dirnames if d not in STATUS_SKIP_DIRS]
+        dirnames[:] = sorted(d for d in dirnames if d not in STATUS_SKIP_DIRS)
         if max_depth is not None and depth >= max_depth:
             dirnames[:] = []
         if 'STATE.json' in filenames:
@@ -868,7 +868,7 @@ def cmd_status(a):
         rows = [r for r in rows if r['age_days'] is not None and r['age_days'] >= a.stale_days]
     rows.sort(key=lambda r: (STATUS_PRIORITY.get(r['status'], 9),
                              -(r['age_days'] if r['age_days'] is not None else 10**6),
-                             r['session']))
+                             r['session'], r['path']))
     visible = rows[:a.limit]
     omitted = len(rows) - len(visible)
     if a.format == 'json':

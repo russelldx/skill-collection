@@ -534,6 +534,10 @@ class HandoffTests(unittest.TestCase):
         table = self.run_cli('status', '--limit', 2, ok=0).stdout
         self.assertIn('feature-00', table)
         self.assertNotIn('feature-24', table)
+        # 排序键打平时必须按路径升序兜底，top-2 恒为根目录 + feature-00，不依赖 readdir 顺序
+        limited = json.loads(self.run_cli('status', '--limit', '2', '--format', 'json', ok=0).stdout)
+        self.assertEqual([Path(r['path']).parent.name for r in limited['sessions']],
+                         [self.root.name, 'feature-00'])
         for args in [('--limit', 0), ('--limit', 201), ('--max-depth', -1)]:
             self.assertEqual(self.run_cli('status', *args).returncode, 2)
 
