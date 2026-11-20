@@ -120,7 +120,7 @@ bash validate-skills.sh
 
 各目录保留了原有的来源说明和许可证文件，本地修改后的内容可能与上游不同。来源包括 Anthropic、Firecrawl、Superpowers、claude-mem、PUA、社区，以及自创技能（如 `session-handoff`、`course-assignment`、`docx-meta`）。内容没有明确的许可证时，不能默认认为可以任意再分发。
 
-**公开发布阻塞**：`anthropic-docx`、`anthropic-pdf`、`anthropic-pptx`、`anthropic-xlsx` 现有的 `LICENSE.txt` 明确限制复制、衍生和再分发。在本地做过技术审查和修复，不代表已经获得许可。确认适用的权利之前，不应公开分发这些目录，也不应宣称整个合集可以自由复制。其他目录如果只写了来源或许可名称、没有具体条款，也要分别核验。不能通过删除或替换原许可来绕过限制。
+**许可状态（2026-11-20 更新）**：上游 `anthropics/skills` 已于 2026-11-06 将 Office 技能转为 Apache 2.0（#2146）；本仓库同步至上游 `e4bb5d9` 后核实，14 个带 `LICENSE.txt` 的 anthropic 入口（含 docx/pdf/pptx/xlsx）均为 Apache 2.0，原先「限制复制、衍生和再分发」的公开发布阻塞对这些目录已解除。`anthropic-doc-coauthoring` 没有 LICENSE.txt，仍按来源核验。其他目录如果只写了来源或许可名称、没有具体条款，也要分别核验；不能默认整个合集可以自由复制，也不能通过删除或替换原许可来绕过限制。
 
 ## 贡献
 
