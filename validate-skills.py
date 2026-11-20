@@ -21,7 +21,7 @@ MERGED = (
 )
 
 
-def prose(text):
+def without_fences(text):
     fence = None
     lines = []
     for line in text.splitlines():
@@ -35,7 +35,11 @@ def prose(text):
             continue
         if fence is None:
             lines.append(line)
-    return re.sub(r"(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)", "", "\n".join(lines), flags=re.DOTALL)
+    return "\n".join(lines)
+
+
+def prose(text):
+    return re.sub(r"(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)", "", without_fences(text), flags=re.DOTALL)
 
 
 def exact_path_exists(path):
@@ -48,9 +52,13 @@ def exact_path_exists(path):
     return True
 
 
-def local_links(text):
+def markdown_targets(text):
     for match in re.finditer(r"\[[^\]\n]*\]\((<[^>]+>|[^\s)]+)(?:\s+\"[^\"]*\")?\)", prose(text)):
-        target = match.group(1).strip("<>")
+        yield match.group(1).strip("<>")
+
+
+def local_links(text):
+    for target in markdown_targets(text):
         if target.startswith("#") or target.startswith("//") or urlsplit(target).scheme:
             continue
         target = unquote(target.split("#", 1)[0].split("?", 1)[0])
@@ -102,7 +110,7 @@ def validate(root, expected_active=65, require_archives=True):
         names.append(name)
     errors.extend(f"duplicate skill name: {name}" for name, count in Counter(names).items() if count > 1)
 
-    documents = active + [root / name for name in ("README.md", "INDEX.md", "MCP-SETUP.md", "TEST-SUMMARY.md") if (root / name).is_file()]
+    documents = active + [root / name for name in ("README.md", "INDEX.md", "MCP-SETUP.md", "TEST-SUMMARY.md", "INSTALL.md", "SKILL-GUIDE.md") if (root / name).is_file()]
     for path in documents:
         for target in local_links(path.read_text(encoding="utf-8-sig")):
             # Keep lexical case: Windows resolves paths case-insensitively.
@@ -147,12 +155,80 @@ def validate(root, expected_active=65, require_archives=True):
     return errors
 
 
+def without_comments(text):
+    return re.sub(
+        r"(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|<!--.*?(?:-->|\Z)",
+        lambda match: match.group(0) if match.group(1) else "",
+        text,
+        flags=re.DOTALL,
+    )
+
+
+def validate_installation_guides(root):
+    root = Path(root).resolve()
+    errors = []
+    documents = {}
+    required = ("INSTALL.md", "SKILL-GUIDE.md", "MCP-SETUP.md")
+    fields = ("能做什么", "适合谁", "准备什么", "怎么配置", "怎么用", "如何验证", "注意事项")
+    for name in (*required, "README.md", "INDEX.md"):
+        path = root / name
+        if path.is_file():
+            documents[path] = without_comments(without_fences(path.read_text(encoding="utf-8-sig")))
+        elif name in required:
+            errors.append(f"missing installation document: {name}")
+
+    expected_cards = {
+        "SKILL-GUIDE.md": {"skill-" + path.parent.name for path in (root / "skills").glob("*/SKILL.md")},
+        "MCP-SETUP.md": {"mcp-" + name for name in ("firecrawl", "chrome-devtools", "snipaste", "claude-mem", "dbx")},
+    }
+    for name, expected in expected_cards.items():
+        text = documents.get(root / name)
+        if text is None:
+            continue
+        text = without_fences(text)
+        markers = list(re.finditer(r'^<a id="((?:skill|mcp)-[^"\n]+)"></a>[ \t]*$', text, re.MULTILINE))
+        counts = Counter(marker.group(1) for marker in markers)
+        if set(counts) != expected:
+            errors.append(f"{name} card coverage: missing={sorted(expected - set(counts))}, stale={sorted(set(counts) - expected)}")
+        errors.extend(f"{name} duplicate card: {key}" for key, count in counts.items() if count > 1)
+        for i, marker in enumerate(markers):
+            end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
+            body = text[marker.end():end]
+            labels = Counter(re.findall(r"\*\*([^*\n]+)\*\*[：:]", prose(body)))
+            for field in fields:
+                values = re.findall(rf"^\*\*{field}\*\*[：:][ \t]*(.*)$", body, re.MULTILINE)
+                if len(values) != 1 or labels[field] != 1 or not values[0].strip():
+                    errors.append(f"{name} {marker.group(1)}: expected one nonempty field {field}")
+
+    anchors = {}
+    for path, text in documents.items():
+        if path.name in required:
+            counts = Counter(re.findall(r'^<a id="([^"\n]+)"></a>[ \t]*$', prose(text), re.MULTILINE))
+            anchors[path] = set(counts)
+            errors.extend(f"{path.name} duplicate installation anchor: {key}" for key, count in counts.items() if count > 1)
+    for path, text in documents.items():
+        for target in local_links(text):
+            if not exact_path_exists(path.parent / target):
+                errors.append(f"missing or case-mismatched link: {path.name} -> {target}")
+        for target in markdown_targets(text):
+            parsed = urlsplit(target)
+            if parsed.scheme or parsed.netloc or not parsed.fragment:
+                continue
+            candidate = (path.parent / unquote(parsed.path)).resolve() if parsed.path else path
+            if candidate in anchors and unquote(parsed.fragment) not in anchors[candidate]:
+                errors.append(f"missing installation anchor: {path.name} -> {target}")
+    return errors
+
+
 def main():
     parser = argparse.ArgumentParser(description="Read-only skill structure, index and local link checks; no runtime or full YAML validation.")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument("--expected-active", type=int, default=65)
+    parser.add_argument("--installation-guide", action="store_true", help="Also require complete installation cards and valid guide anchors.")
     args = parser.parse_args()
     errors = validate(args.root, args.expected_active)
+    if args.installation_guide:
+        errors.extend(validate_installation_guides(args.root))
     for error in errors:
         print(f"ERROR: {error}")
     print(f"Active entries: {len(list((args.root / 'skills').glob('*/SKILL.md')))}; errors: {len(errors)}")
