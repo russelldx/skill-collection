@@ -192,8 +192,10 @@ class Sync:
         if actual != self.repo:
             raise SyncError("--repo must be the repository root")
         # Injection is programmatic only. CLI can never turn an arbitrary root into an allowed one.
+        # ~/.qoder/skills is the only managed install root; ~/.agents/skills is an npx skills
+        # cache and is intentionally neither scanned nor synced.
         self.roots = tuple(Path(os.path.abspath(p)) for p in (roots if roots is not None else
-                           [Path.home() / ".qoder/skills", Path.home() / ".agents/skills"]))
+                           [Path.home() / ".qoder/skills"]))
         common = Path(git(self.repo, "rev-parse", "--path-format=absolute", "--git-common-dir").decode().strip()).resolve()
         gitdir = git(self.repo, "rev-parse", "--absolute-git-dir").strip()
         self.common = common
