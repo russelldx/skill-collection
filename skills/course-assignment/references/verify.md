@@ -8,7 +8,6 @@
 
 ```bash
 DOCX_META_DIR="${DOCX_META_DIR:-$HOME/.qoder/skills/docx-meta}"
-[ -f "$DOCX_META_DIR/scripts/docx-meta.py" ] || DOCX_META_DIR="$HOME/.agents/skills/docx-meta"
 if [ ! -f "$DOCX_META_DIR/scripts/docx-meta.py" ] && [ -n "$SKILL_DIR" ]; then
   DOCX_META_DIR="$(cd "$SKILL_DIR/.." && pwd)/docx-meta"
 fi
