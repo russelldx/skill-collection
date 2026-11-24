@@ -233,7 +233,7 @@ class DocxMetaTests(unittest.TestCase):
             self.assertIn("word/people.xml", before["removable"])
             self.assertIn("Reviewer X", before["review"])
 
-            result = run("--backup", "--edit-minutes", "90",
+            result = run("--clean", "--backup", "--edit-minutes", "90",
                          "--modified", "2026-10-01T12:00:00Z", str(sample))
             self.assertEqual(result.returncode, 0, output(result))
             self.assertIn("dropped parts: docProps/custom.xml, word/people.xml, docProps/thumbnail.jpeg",
@@ -248,9 +248,9 @@ class DocxMetaTests(unittest.TestCase):
             self.assertEqual(after["TotalTime"], "90")
             self.assertEqual(after["removable"], "<none>")
             self.assertEqual(after["review"], "<none>")
-            self.assertEqual(after["created"], "2026-10-01T10:30:00Z")
+            self.assertEqual(after["created"], "2026-09-01T08:00:00Z")
             self.assertEqual(after["modified"], "2026-10-01T12:00:00Z")
-            self.assertEqual(after["fs.created"], after["created"])
+            self.assertEqual(after["fs.created"], before["fs.created"])
             self.assertEqual(after["fs.modified"], after["modified"])
 
             with zipfile.ZipFile(sample) as archive:
@@ -281,22 +281,129 @@ class DocxMetaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="docx-meta-estimate-") as temp:
             sample = Path(temp) / "estimate.docx"
             build_sample(sample)
-            result = run("--author", "保留作者", str(sample))
+            before = inspect(sample)
+            result = run("--clean", "--author", "保留作者", str(sample))
             self.assertEqual(result.returncode, 0, output(result))
 
             after = inspect(sample)
             minutes = int(after["TotalTime"])
             self.assertGreaterEqual(minutes, 8)
             self.assertLessEqual(minutes, 6000)
+            self.assertNotEqual(minutes % 5, 0)
             self.assertEqual(after["author"], "保留作者")
             self.assertEqual(after["lastModifiedBy"], "保留作者")
             self.assertEqual(after["review"], "保留作者")
-            created = after["created"]
-            self.assertEqual(created, after["fs.created"])
+            self.assertEqual(after["created"], "2026-09-01T08:00:00Z")
+            self.assertEqual(after["fs.created"], before["fs.created"])
             span = dt.datetime.strptime(after["modified"], "%Y-%m-%dT%H:%M:%SZ") - dt.datetime.strptime(
-                created, "%Y-%m-%dT%H:%M:%SZ"
+                after["created"], "%Y-%m-%dT%H:%M:%SZ"
             )
-            self.assertEqual(span, dt.timedelta(minutes=minutes))
+            self.assertGreaterEqual(span, dt.timedelta(minutes=minutes))
+
+    def test_clean_caps_total_without_moving_creation_time(self):
+        with tempfile.TemporaryDirectory(prefix="docx-meta-capped-") as temp:
+            sample = Path(temp) / "capped.docx"
+            build_sample(sample)
+            result = run("--clean", "--created", "2026-10-01T11:50:00Z",
+                         "--modified", "2026-10-01T12:00:00Z",
+                         "--edit-minutes", "90", str(sample))
+            self.assertEqual(result.returncode, 0, output(result))
+            after = inspect(sample)
+            self.assertEqual(after["created"], "2026-10-01T11:50:00Z")
+            self.assertEqual(after["modified"], "2026-10-01T12:00:00Z")
+            self.assertEqual(after["TotalTime"], "10")
+            self.assertIn("capped to 10min", result.stdout)
+
+    def test_copy_style_keeps_core_creation_time(self):
+        with tempfile.TemporaryDirectory(prefix="docx-meta-copy-style-core-") as temp:
+            sample = Path(temp) / "copy-style-core.docx"
+            build_sample(sample)
+            before = inspect(sample)
+            result = run("--clean", "--copy-style", "--edit-minutes", "90", str(sample))
+            self.assertEqual(result.returncode, 0, output(result))
+            after = inspect(sample)
+            self.assertEqual(after["created"], before["created"])
+            self.assertEqual(after["TotalTime"], "90")
+            if os.name == "nt":
+                self.assertNotEqual(after["fs.created"], after["created"])
+
+    def test_default_preserve_keeps_identity_and_package_parts(self):
+        with tempfile.TemporaryDirectory(prefix="docx-meta-preserve-") as temp:
+            sample = Path(temp) / "preserve.docx"
+            build_sample(sample)
+            before_app = properties(sample)
+
+            result = run("--edit-minutes", "90", str(sample))
+            self.assertEqual(result.returncode, 0, output(result))
+
+            after = inspect(sample)
+            self.assertEqual(after["author"], "Smoke Author")
+            self.assertEqual(after["lastModifiedBy"], "Smoke Editor")
+            self.assertEqual(after["revision"], "7")
+            self.assertEqual(after["title"], "Secret Title")
+            self.assertEqual(after["description"], "Secret Description")
+            self.assertEqual(after["Company"], "Secret Company")
+            self.assertEqual(after["TotalTime"], "90")
+            self.assertEqual(after["created"], "2026-09-01T08:00:00Z")
+            # The fixture mtime is newer than core.modified, so the saved time follows it.
+            self.assertEqual(after["modified"], "2026-10-01T12:00:00Z")
+            self.assertEqual(sample.stat().st_mtime,
+                             dt.datetime(2026, 10, 1, 12, tzinfo=dt.timezone.utc).timestamp())
+
+            with zipfile.ZipFile(sample) as archive:
+                names = set(archive.namelist())
+                comments = archive.read("word/comments.xml").decode("utf-8")
+            self.assertIn("docProps/custom.xml", names)
+            self.assertIn("docProps/thumbnail.jpeg", names)
+            self.assertIn("word/people.xml", names)
+            self.assertIn('w:author="Reviewer X"', comments)
+            self.assertIn('w:initials="RX"', comments)
+
+            after_app = properties(sample)
+            for key in ("Application", "Company", "Pages", "Words", "Characters",
+                        "Lines", "Paragraphs", "CharactersWithSpaces"):
+                self.assertEqual(after_app.get(key), before_app.get(key), key)
+            self.assertEqual(after_app["TotalTime"], "90")
+
+    def test_preserve_explicit_values_override_only_named_fields(self):
+        with tempfile.TemporaryDirectory(prefix="docx-meta-preserve-override-") as temp:
+            sample = Path(temp) / "override.docx"
+            build_sample(sample)
+
+            result = run("--author", "新作者", "--title", "新标题", "--company", "新公司",
+                         "--revision", "12", "--created", "2026-09-03T08:00:00Z",
+                         "--modified", "2026-09-04T09:00:00Z", "--pages", "3",
+                         "--edit-minutes", "90", str(sample))
+            self.assertEqual(result.returncode, 0, output(result))
+
+            after = inspect(sample)
+            self.assertEqual(after["author"], "新作者")
+            self.assertEqual(after["lastModifiedBy"], "新作者")
+            self.assertEqual(after["title"], "新标题")
+            self.assertEqual(after["description"], "Secret Description")
+            self.assertEqual(after["Company"], "新公司")
+            self.assertEqual(after["revision"], "12")
+            self.assertEqual(after["created"], "2026-09-03T08:00:00Z")
+            self.assertEqual(after["modified"], "2026-09-04T09:00:00Z")
+            self.assertEqual(after["Pages"], "3")
+            self.assertEqual(after["TotalTime"], "90")
+
+            with zipfile.ZipFile(sample) as archive:
+                names = set(archive.namelist())
+                comments = archive.read("word/comments.xml").decode("utf-8")
+            self.assertIn("docProps/custom.xml", names)
+            self.assertIn("word/people.xml", names)
+            self.assertIn('w:author="Reviewer X"', comments)
+            self.assertEqual(properties(sample)["Application"], "Microsoft Macintosh Word")
+
+    def test_copy_style_requires_clean_mode(self):
+        with tempfile.TemporaryDirectory(prefix="docx-meta-copy-style-") as temp:
+            sample = Path(temp) / "copy-style.docx"
+            build_sample(sample)
+            before = tree_snapshot(sample.parent)
+            result = run("--copy-style", str(sample))
+            self.assertNotEqual(result.returncode, 0, output(result))
+            self.assertEqual(tree_snapshot(sample.parent), before, output(result))
 
 
 class DocxMetaLifecycleTests(unittest.TestCase):

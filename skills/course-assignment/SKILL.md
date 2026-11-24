@@ -13,7 +13,7 @@ description: 大学课程作业通用处理流程（不限科目）。当用户�
 
 - **会话交接**：按 `session-handoff` 先检查用户是否授权持久化交接；仅在授权目录创建/追加，未授权就在回复中交接。AGENTS.md、.gitignore 与全局 hooks 的修改需分别获准。
 - **Word 细节**：docx 格式知识看 `anthropic-docx` skill；本 skill 自带生成器 `scripts/gen_docx.cjs`（先检查依赖）
-- **元数据收尾（强制）**：任何 docx 生成后、以及用户在 Word/WPS 中另存后，必须执行 `docx-meta` 清理作者/修订者/自定义属性/缩略图并校正时间线；缺该 skill 时停止交付并说明，不得跳过。
+- **元数据收尾（强制）**：任何 docx 生成后、以及用户在 Word/WPS 中另存后，必须执行 `docx-meta --clean` 清理作者/修订者/自定义属性/缩略图并校正时间线；缺该 skill 时停止交付并说明，不得跳过。docx-meta 默认已改为原样保留，本链路不能省略 `--clean`。
 - **联网操作**：学习通等有登录态的平台用 chrome-devtools MCP（web-access 的 CDP proxy 与新版 Chrome 不兼容，见 references/pitfalls.md）
 
 ## 九步流程
@@ -64,17 +64,17 @@ if [ ! -f "$DOCX_META_DIR/scripts/docx-meta.py" ] && [ -n "$SKILL_DIR" ]; then
   DOCX_META_DIR="$(cd "$SKILL_DIR/.." && pwd)/docx-meta"
 fi
 test -f "$DOCX_META_DIR/scripts/docx-meta.py" || { echo "缺少 docx-meta，停止交付"; exit 1; }
-PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --backup "<输出.docx>"
-PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.docx>"
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --clean --backup "<输出.docx>"
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --clean --inspect "<输出.docx>"
 ```
 
-- 默认清空作者/最后修改者/标题/描述/自定义属性/缩略图/审阅者列表，批注与修订内容保留但作者置空；只有用户明确要署名时才加 `--author "<姓名>"`。
+- 本链路固定加 `--clean`：清空作者/最后修改者/标题/描述/自定义属性/缩略图/审阅者列表，批注与修订内容保留但作者置空；只有用户明确要署名时才再加 `--author "<姓名>"`。不加 `--clean` 时 docx-meta 会原样保留这些属性。
 - 总时长首次采用包内已有正数或全文估算，后续按基线累计；已知本轮时长用 `--add-minutes N` 追加一次，`--edit-minutes N` 则是覆盖绝对总量。估算不是实测，不拿两次保存的时间差冒充编辑时长；纯排版/校对耗时未知时明确说明未计入。
 - 默认 `--mode auto`；需要防止基线丢失时用 `--mode update`。同一文档修订不重置；同路径换无关文档才用 `--mode initial`。重命名/移动需用 `--state-file` 指向原基线继续累计。
 - 直接调用 docx-meta，不另写固定 `--edit-minutes 0` 或清理后删除 TotalTime/Application 等字段的 wrapper；真实渲染页数用 `--pages N`。既有项目明确留空的策略变更需单独确认。
 - `.bak` 含原始敏感元数据，基线 JSON 属本地工作记录，两者均不随交付提交；删除备份遵守用户授权。
-- 处理前关闭 Word/WPS；只支持 `.docx`，`.doc` 先另存为 `.docx`。清理后再次保存就再次收尾。
-- 复核期望：`core.author`/`core.lastModifiedBy` 为空、`removable parts: <none>`、`review authors` 为空、包内总时长与基线一致、`modified-created ≥ TotalTime`；再次编辑无需把旧创建时间改成恰好相等。
+- 处理前关闭 Word/WPS；只支持 `.docx`，`.doc` 先另存为 `.docx`。清理或另存后再次保存就再次收尾。
+- clean 模式复核期望：`core.author`/`core.lastModifiedBy` 为空、`removable parts: <none>`、`review authors` 为空、包内总时长与基线一致、`modified-created ≥ TotalTime`；再次编辑无需把旧创建时间改成恰好相等。
 - 本步只改属性，不改正文；但会重写 ZIP，完成后仍要跑第 7 步的格式与结构校验。
 
 ### 7 三重校验（手册见 references/verify.md）
@@ -92,7 +92,7 @@ PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.doc
 
 ## 行为纪律
 
-- 交付的 docx 必须经过第 6 步元数据收尾；不得以"生成器本来就没写作者"为由跳过——生成器、模板、Word/WPS 保存都可能写入元数据
+- 交付的 docx 必须经过第 6 步 `--clean` 元数据收尾；不得以"生成器本来就没写作者"为由跳过——生成器、模板、Word/WPS 保存都可能写入元数据
 - 踩坑记 `references/pitfalls.md`（新坑随做随记，标注日期）
 - 每会话结束仅在获准维护的交接文档中追加完成内容/验证证据/新坑/环境变更/遗留；未授权时只回复摘要
 
@@ -102,4 +102,4 @@ PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.doc
 - `scripts/verify_media.py` — 核对内嵌图片实际字节；缺图/读取失败返回非零
 - `references/pitfalls.md` — 跨科目通用踩坑记录（学习通/浏览器自动化/Windows 中文/docx）
 - `references/verify.md` — 元数据复核 + 三重校验操作手册（含结构检查代码模板）
-- `docx-meta`（独立 skill）— `.docx` 元数据清理与时间线校正；第 6 步强制调用
+- `docx-meta`（独立 skill）— `.docx` 元数据清理与时间线校正；第 6 步强制以 `--clean` 调用

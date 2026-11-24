@@ -4,7 +4,7 @@
 
 ## 第 0 层 元数据与时间线（强制前置）
 
-生成或另存 docx 后先跑 `docx-meta`，再用 `--inspect` 复核；缺该 skill 时停止交付，不得跳过：
+生成或另存 docx 后先跑 `docx-meta --clean`，再用 `--clean --inspect` 复核；缺该 skill 时停止交付，不得跳过。docx-meta 默认已改为原样保留，本交付链路必须显式加 `--clean` 才会清理：
 
 ```bash
 DOCX_META_DIR="${DOCX_META_DIR:-$HOME/.qoder/skills/docx-meta}"
@@ -13,19 +13,20 @@ if [ ! -f "$DOCX_META_DIR/scripts/docx-meta.py" ] && [ -n "$SKILL_DIR" ]; then
   DOCX_META_DIR="$(cd "$SKILL_DIR/.." && pwd)/docx-meta"
 fi
 test -f "$DOCX_META_DIR/scripts/docx-meta.py" || { echo "缺少 docx-meta，停止交付"; exit 1; }
-PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --backup "<输出.docx>"
-PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --inspect "<输出.docx>"
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --clean --backup "<输出.docx>"
+PYTHONUTF8=1 python "$DOCX_META_DIR/scripts/docx-meta.py" --clean --inspect "<输出.docx>"
 ```
 
-必查清单：
+必查清单（clean 模式）：
 
-- [ ] `core.author` / `core.lastModifiedBy` 为空（除非用户明确要求署名并传了 `--author`）
+- [ ] `mode=clean`，`core.author` / `core.lastModifiedBy` 为空（除非用户明确要求署名并传了 `--author`）
 - [ ] `removable parts: <none>`，`review authors` 为空
-- [ ] `core.modified - core.created ≥ app.TotalTime`，新建文档通常相等；再次编辑保留较早的创建时间，不要求相等
+- [ ] `core.modified - core.created ≥ app.TotalTime`，新建文档通常相等；再次编辑保留较早的创建时间，总时长超出实际跨度时会被压到跨度以内
 - [ ] `--inspect` 的基线总量与 `app.TotalTime` 一致，来源标为估算时不声称实测；普通重跑不重复计时
-- [ ] `core.created` 与文件系统 created 一致（`--copy-style` 或不支持 birthtime 的系统除外）
+- [ ] `core.created` 未被脚本前移；文件系统 created 恢复为原文件值，二者可以不同（`--copy-style` 只改 FS 出生时间）
 - [ ] `.bak` 与基线 JSON 未随交付提交；删除备份需遵守用户授权
 - [ ] 清理后重新跑了第 1、2 层校验（docx-meta 会重写 ZIP）
+- [ ] 若本次实际未清理（例如误用默认 preserve），停止交付并按上面命令补跑 `--clean`
 
 ## 第 1 层 格式合法性
 

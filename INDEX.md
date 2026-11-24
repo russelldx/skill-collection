@@ -9,7 +9,7 @@
 | Skill | 用途 | 依赖 / 限制 |
 |-------|------|-------------|
 | [anthropic-docx](skills/anthropic-docx/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-anthropic-docx) | 创建、编辑 Word，填充模板 | 按处理方式准备 Python / Node；模板由用户提供，不保证附带所缺的模板 |
-| [docx-meta](skills/docx-meta/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-docx-meta) | 交付 Word 前清理元数据、校正时间线 | Python；只处理 `.docx`；处理前关闭 Word/WPS；清理后再保存会写回元数据 |
+| [docx-meta](skills/docx-meta/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-docx-meta) | Word 元数据默认保留、只维护总编辑时间；交付清理加 `--clean` | Python；只处理 `.docx`；处理前关闭 Word/WPS；清理后再保存会写回元数据 |
 | [anthropic-pdf](skills/anthropic-pdf/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-anthropic-pdf) | 提取、合并、拆分 PDF，处理表单 | Python / PDF 工具，按具体操作检查依赖 |
 | [anthropic-pptx](skills/anthropic-pptx/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-anthropic-pptx) | 生成、编辑演示文稿 | Node / Python / 渲染工具；必须检查渲染结果 |
 | [anthropic-xlsx](skills/anthropic-xlsx/SKILL.md) · [安装与用法](SKILL-GUIDE.md#skill-anthropic-xlsx) | `.xlsx`、CSV、TSV 通用处理 | Python；通过 Office 重算还需要其他依赖，不能修改真实用户的宏配置 |

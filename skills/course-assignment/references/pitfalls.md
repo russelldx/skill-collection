@@ -26,8 +26,9 @@
 - **不要用 Word COM 自动导 PDF**（2026-09-05 两次踩坑）：① COM 实例退出失败残留不可见 WINWORD（`MainWindowHandle=0`）死锁输出目录的 docx/pdf，还留 `~$` 锁文件；② 强杀后下次 COM 启动弹不可见"恢复/安全模式"对话框，`ExportAsFixedFormat` 永不返回 → 需要 PDF 时让用户在 WPS/Word 里手动"另存为"
 - 重新生成 docx 报 `EBUSY` → 先 `Get-Process wps,WINWORD` 看 `MainWindowHandle`：**非 0 是用户自己开着文档**，请用户关闭，绝不强杀用户正在编辑的进程；为 0 的不可见实例才是自动化残留，可安全清理并删 `~$` 锁文件
 - **WPS/Word 另存后需重新验证结构，不应直接丢弃人工修改**：2026-09-05 的样本曾出现图片重压缩、段落数变化和 styles.xml 元素顺序错误；这是该样本的证据，不代表所有另存文件都损坏。先保全用户修改、回流内容源并检查结构，确有问题才决定修复或重新生成。
-- **Word/WPS 保存可能重写元数据**：作者可能恢复，TotalTime 可能累计或归零，不能一概称为实测。首次生成即跑 `docx-meta` 建立包外基线；每轮修改保存并关闭编辑器后再跑，默认自动累计。已知本轮时长用 `--add-minutes N` 追加一次，不是 `--edit-minutes N`（后者覆盖总量）。随后 `--inspect` 核对总量与基线、来源、`modified-created ≥ TotalTime`；估算不等于真实计时。
+- **Word/WPS 保存可能重写元数据**：作者可能恢复，TotalTime 可能累计或归零，不能一概称为实测。首次生成即跑 `docx-meta --clean` 建立包外基线；每轮修改保存并关闭编辑器后再跑，默认自动累计。已知本轮时长用 `--add-minutes N` 追加一次，不是 `--edit-minutes N`（后者覆盖总量）。随后 `--clean --inspect` 核对总量与基线、来源、`modified-created ≥ TotalTime`；估算不等于真实计时。
 - **不要二次剥离收尾字段**：wrapper 固定传 `--edit-minutes 0`，再删除 TotalTime/Application，会抵消 docx-meta；直接调用统一脚本，实际渲染页数用 `--pages N`。既有项目若明确选择不估算/留空，先确认是否改变该策略，不自动覆盖。基线默认在用户数据目录，不进交付；`.bak` 含原隐私信息，删除遵守授权。
+- **docx-meta 默认已改为 preserve（2026-11-23）**：直接调用只维护 TotalTime，不清作者、最后保存者、程序名、custom.xml、缩略图和审阅作者；交付清理必须显式 `--clean`，再按第 0 层复核。别把“属性没被删”当成脚本失灵。用精确副本实测：该样本 TotalTime 原为 2，preserve 后 `core.xml`/`app.xml`/`custom.xml` 均字节不变，资源管理器“作者/所有者/程序名称/内容创建时间/上次保存日期”不变；若 TotalTime 确需更新，`app.xml` 只改该字段。`--clean` 仍清隐私，但创建时间不再前移，总时长超过 `modified-created` 跨度时改为压到跨度以内；自动估算避开 5 的整数倍。
 - PowerShell 5.1 把 UTF-8 **无 BOM** 的 .ps1 按 GBK 解码，硬编码中文路径变乱码 → 脚本只用 ASCII 内容，或用 pwsh 7
 - Git Bash 会展开双引号里 PowerShell 命令的 `$var`/`$_` → 把命令写进 .ps1 用 `-File` 执行，或改用无 `$` 的写法
 - 全局 npm 包（docx）不在本地 node_modules → 先运行本 skill 实际路径下 `scripts/gen_docx.cjs --check-deps`；生成器会检查本地/NODE_PATH 与已有 `npm root -g`。也可由用户指定实际的 NODE_PATH；不要复制个人机器路径，不自动安装

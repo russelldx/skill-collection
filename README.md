@@ -6,7 +6,7 @@
 
 > **核心入口：`session-handoff`**。它用于跨会话交接、专家团角色协作，也支持在 Qoder CLI 的同一会话内派发并行 agent。任务需要跨多个会话、分批推进，或需要把踩过的坑留给后续会话时，默认推荐安装。如果 agent 决定不推荐，必须在清单里说明理由，不能直接跳过。
 
-本仓库现有 **65 个活动入口**，另有 4 个已合并为参考资料的入口和 4 个暂停入口。活动入口中，8 个检索与集成入口是在用户授权后从上游 `firecrawl/cli`、`firecrawl/skills` 新增的；`docx-meta` 元数据清理入口和 `shuorenhua` 中文编辑入口由本地维护。
+本仓库现有 **65 个活动入口**，另有 4 个已合并为参考资料的入口和 4 个暂停入口。活动入口中，8 个检索与集成入口是在用户授权后从上游 `firecrawl/cli`、`firecrawl/skills` 新增的；`docx-meta` 元数据入口（默认保留、`--clean` 清理）和 `shuorenhua` 中文编辑入口由本地维护。
 
 目前检查了文档、目录结构，并对部分脚本做了回归测试。这不代表所有技能都已在所有平台上运行通过。新增的 8 个 Firecrawl 入口与 `docx-meta` 具体验证了什么，见 [TEST-SUMMARY.md](./TEST-SUMMARY.md)。
 
@@ -70,10 +70,10 @@
 | 已有复杂需求 | `superpowers-writing-plans` → `superpowers-executing-plans`；已有明确批准的方案不重复审批 |
 | 代码审查 | `code-review`；确有多维审查需求再选 `diegosouzapw-deep-review` |
 | 办公文档 | `anthropic-docx/pdf/pptx/xlsx`；旧版 `.xls` 选 `xls-poi`，删列链路暂不启用 |
-| Word 元数据清理 | `docx-meta`：删除作者/修订者/自定义属性/缩略图，校正总编辑时间；只处理 `.docx` |
+| Word 元数据维护 | `docx-meta`：默认保留作者/修订者/所有者/程序名和自定义属性，只维护总编辑时间；交付清理需显式 `--clean`；两种模式都不自动前移创建时间，总时长超出实际跨度时压到跨度以内；只处理 `.docx` |
 | 公开网页搜索、抓取 | `firecrawl` 及具体子技能，使用前检查 CLI 或 MCP 是否可用 |
 | 本机浏览器登录态、书签/历史、站点经验 | `web-access`，不依赖 Chrome DevTools MCP |
-| 课程作业 | `course-assignment`（已强制接入 `docx-meta` 收尾）；平台上传、填写答案、提交均须明确授权 |
+| 课程作业 | `course-assignment`（已强制以 `docx-meta --clean` 收尾）；平台上传、填写答案、提交均须明确授权 |
 | 需求 | `gen-prd`（访谈）→ `decompose-prd`（拆解）；`prd-reviewer` 的专用量表需先确认适用 |
 | 所有面向用户的中文回复 | 默认推荐 `shuorenhua + 全局规则`；普通回复不附改动摘要，仅改写已有文字时默认附上。主动确认全局写入授权，按宿主安装并验证加载，不复制个人全局配置 |
 | 跨会话交接、多会话协作 | `session-handoff`（核心入口，默认推荐）；专家团与 Qoder CLI 并行 agent 模式见其 references |
@@ -85,8 +85,8 @@
 | 能力 | 依赖和边界 |
 |------|------------|
 | 文档脚本 | 依具体路线需要 Python、Node.js、相应包；PDF/PPT 渲染、Office 重算可能还需外部程序 |
-| docx-meta | Python 3；只处理 `.docx`；处理前关闭 Word/WPS；清理后再用 Word/WPS 保存会写回元数据，交付前需重跑 |
-| 课程 DOCX 交付 | `course-assignment` 生成器需要 Node.js 与 `docx` 包；元数据收尾强制使用 `docx-meta`；平台提交须明确授权 |
+| docx-meta | Python 3；只处理 `.docx`；默认原样保留属性，交付清理需显式 `--clean`；处理前关闭 Word/WPS；清理后再用 Word/WPS 保存会写回元数据，交付前需重跑 |
+| 课程 DOCX 交付 | `course-assignment` 生成器需要 Node.js 与 `docx` 包；元数据收尾强制使用 `docx-meta --clean`；平台提交须明确授权 |
 | POI 表格处理 | Java + Apache POI；显式配置本机 classpath，不能照搬个人磁盘路径 |
 | web-access | Node.js 22+、可授权连接的 Chromium 系浏览器；历史检索另需 sqlite3 CLI，书签读取不需要 sqlite3 |
 | Firecrawl 18 个技能 | 主要使用 Firecrawl CLI；MCP 为可选工具接口，CLI 安装/登录成功不证明 MCP 正常 |

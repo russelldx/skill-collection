@@ -103,7 +103,7 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 | web-access 上游套件 | 227 项通过、3 项跳过（11-20，v2.6.0） | 8 个上游测试文件：浏览器发现/探测、CDP 连接与代理、check-deps 身份复核与偏好、page-frames、proxy-maintenance、user-data 迁移；夹具在临时目录生成，不启动真实浏览器或监听端口。测试夹具的 `--import` 裸路径在 Windows 报 `ERR_UNSUPPORTED_ESM_URL_SCHEME`，已本地补 `pathToFileURL`（5 处，属本地定制）。旧 `audit-safety.test.mjs` 已退休（见下节） |
 | DOCX 图片校验 | 4 项通过 | 比较媒体内容字节、发现缺图、错误输入及非零退出码 |
 | 课程 DOCX 生成 | 3 项通过，无跳过 | 缺依赖预检查，以及使用现有 docx 包真实生成包含表格和图片的 DOCX，再校验媒体 |
-| DOCX 元数据清理 | 仓库侧与安装侧各 26 项通过 | 保留原清理/注册/时间线/作者覆盖测试；新增初次基线、WPS 清零/缺失恢复、绝对覆盖与手动追加、原生累计值去重、增删改文本、重复文字小改动、重复运行与空闲时间不计入、纯排版不编造耗时、改名续接、页数覆盖、只读预演、损坏/锁定基线拒绝；通过注入文件替换失败，验证基线不前移；也验证基线保存失败时，不丢失修改时间锚点。样本与状态均在临时目录 |
+| DOCX 元数据 preserve / clean | 仓库侧 31 项通过（2026-11-24）；安装侧仍是上一轮 26 项旧代码，本轮未同步、未重跑 | 保留原清理/注册/时间线/作者覆盖测试，并新增默认 preserve 保留身份与包内部件、显式字段只覆盖指定项、`--copy-style` 必须配 `--clean`、总时长超出实际跨度时只压总时长不前移创建时间、自动估算避开 5 的整数倍；其余覆盖初次基线、WPS 清零/缺失恢复、绝对覆盖与手动追加、原生累计值去重、增删改文本、重复文字小改动、重复运行与空闲时间不计入、纯排版不编造耗时、改名续接、页数覆盖、只读预演、损坏/锁定基线拒绝。通过注入文件替换失败，验证基线不前移；也验证基线保存失败时，不丢失修改时间锚点。样本与状态均在临时目录 |
 | POI 删列停用 | 4 项通过 | 真实编译运行拒绝入口，确认输入/输出不变；其他命令只验证参数转发，不代表 POI 工作簿功能已验收 |
 
 测试在临时目录中生成样本并清理，不使用真实用户文件。运行前需要现有 Python/openpyxl、Node.js、Java 和 Bash；DOCX 生成测试在缺少现有 docx 包时会明确跳过，不能把跳过记作通过。
@@ -113,6 +113,22 @@ PYTHONUTF8=1 python -B skills/xls-poi/scripts/test_paused.py
 对一份独立的临时 DOCX，先设置 90 分钟并建立基线，模拟编辑器把包内 TotalTime 清零，再显式追加 15 分钟。Windows Shell `System.Document.TotalEditingTime` 读取为 105 分钟，详细属性显示 `01:45:00`。随后模拟等长替换一个英文词并再次清零，自动估算的增量为 1 分钟，累计得到 106，普通重跑仍为 106；Shell 显示 `01:46:00`。回归测试验证了原正文/媒体保留，基线位于 DOCX 包外。
 
 这证明当前 Windows 属性处理程序能显示包内数值，但不是 Word/WPS GUI 的真实编辑保存测试，也不证明估算分钟数就是实际耗时。未修改任何用户交付文档或实验三的项目 wrapper。
+
+### docx-meta 默认 preserve 的精确副本验收（2026-11-23）
+
+用用户提供的 `测试.docx` 做精确副本（保留原 mtime/atime/birthtime），分别运行默认 preserve 与 `--clean`：
+
+- preserve：该样本 TotalTime 原为 2，`core.xml`、`app.xml`、`custom.xml` 的 SHA-256 前后一致；资源管理器详细信息中的作者、所有者、程序名称、内容创建时间、上次保存日期、总编辑时间、页数、字数与原文件一致。可见差异只有读取刷新后的访问时间，以及临时目录位置导致的“共享”状态。
+- `--clean`：作者/最后保存者清空、`revision=1`、`Application=Microsoft Office Word`、统计重算、`custom.xml` 删除；`core.created` 保持原值，文件时间恢复为原文件值。
+- 这不是所有 Word/WPS 版本的保存验收；真实文档经编辑器保存后仍需重新运行 `--inspect` 或 `--clean --inspect` 检查。
+
+### docx-meta 时间策略收紧（2026-11-24）
+
+按用户要求改为“创建时间不动、总时长只在真实跨度内”：`core.created` 只在显式 `--created` 时改写，clean 模式不再为了凑总时长前移创建时间；`TotalTime` 超过 `modified - created` 时压到跨度上限并提示；自动估算和自动累计避开 5 的整数倍，显式 `--edit-minutes` 仍按原值写入。`--copy-style` 保留 core 时间，只让文件系统出生时间落在重写时刻。
+
+- 回归：`PYTHONUTF8=1 python -B skills/docx-meta/scripts/test_docx_meta.py -v` → 31 项通过，152.536 秒。
+- 样本：对 `测试.docx` 的临时副本运行默认 preserve，`core.xml`/`app.xml`/`custom.xml` 的 SHA-256 前后一致；`core.created=2026-04-18T01:39:00Z`、`core.modified=2026-11-23T07:27:34Z`、`TotalTime=2` 均未改。
+- 边界：脚本不会为了制造“人工写了很久”的印象而虚构超出实际跨度的时长；真实跨度短时 TotalTime 就会较短。OOXML 的 `TotalTime` 只能存整数分钟，所谓“不要整分钟”落实为自动值避开 5/10 的整齐数字，不能存秒。
 
 ### docx-meta 累计模式维护时发现的独立失败（2026-11-01）
 

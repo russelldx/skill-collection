@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove docx metadata/PII, build a closed-loop timeline, estimate total editing time."""
+"""Preserve or clean docx metadata, maintain total editing time, and align timelines."""
 
 import argparse
 from collections import Counter
@@ -132,6 +132,13 @@ def text_stats(document_xml):
     }
 
 
+def non_round_minutes(value):
+    value = max(1, min(6000, int(value)))
+    if value % 5 == 0:
+        value += 1 if value < 6000 else -1
+    return value
+
+
 def estimate_minutes(stats, chars_per_min, words_per_min):
     base = stats["cjk"] / chars_per_min + stats["latin"] / words_per_min
     overhead = (
@@ -142,7 +149,7 @@ def estimate_minutes(stats, chars_per_min, words_per_min):
     )
     digest = hashlib.sha256(stats["text"].encode("utf-8")).digest()
     jitter = 0.92 + (int.from_bytes(digest[:2], "big") % 21) / 100
-    return max(8, min(6000, round((base + overhead) * jitter)))
+    return non_round_minutes(max(8, min(6000, round((base + overhead) * jitter))))
 
 
 TOKEN_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[A-Za-z0-9]+(?:['\u2019-][A-Za-z0-9]+)*|[^\s]")
@@ -284,7 +291,7 @@ def resolve_minutes(args, entries, stats, snapshot, baseline):
         return native_total, "editor-total", baseline["estimated"]
     added = estimate_delta(baseline["snapshot"], snapshot, args.chars_per_min, args.words_per_min)
     if added:
-        return baseline["total_minutes"] + added, "baseline+estimated-delta", True
+        return non_round_minutes(baseline["total_minutes"] + added), "baseline+estimated-delta", True
     if snapshot["content_hash"] != baseline["snapshot"]["content_hash"]:
         _out("  warning: formatting/review duration is unknown; use --add-minutes N if known")
     return baseline["total_minutes"], "baseline-preserved", baseline["estimated"]
@@ -303,7 +310,29 @@ def remove_tag(root, ns, tag):
         root.remove(el)
 
 
-def build_core(old, args, created, modified):
+def read_core_datetime(data, tag):
+    if not data:
+        return None
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError:
+        return None
+    el = root.find(f"{{{DCTERMS}}}{tag}")
+    if el is None or not el.text:
+        return None
+    try:
+        return parse_dt(el.text)
+    except (ValueError, OverflowError):
+        return None
+
+
+def set_core_datetime(root, tag, value):
+    el = get_or_add(root, DCTERMS, tag)
+    el.set(f"{{{XSI}}}type", "dcterms:W3CDTF")
+    el.text = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def build_core_clean(old, args, created, modified):
     root = ET.fromstring(old) if old else ET.Element(f"{{{CP}}}coreProperties")
     for ns, tag in CORE_PRIVATE:
         if tag == "title" and args.title:
@@ -317,15 +346,70 @@ def build_core(old, args, created, modified):
     else:
         remove_tag(root, DC, "creator")
         remove_tag(root, CP, "lastModifiedBy")
-    get_or_add(root, CP, "revision").text = str(args.revision)
+    revision = args.revision if args.revision is not None else 1
+    get_or_add(root, CP, "revision").text = str(revision)
     for tag, value in (("created", created), ("modified", modified)):
-        el = get_or_add(root, DCTERMS, tag)
-        el.set(f"{{{XSI}}}type", "dcterms:W3CDTF")
-        el.text = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        set_core_datetime(root, tag, value)
     return ET.tostring(root, encoding="UTF-8", xml_declaration=True)
 
 
-def build_app(old, args, stats, edit_minutes):
+def update_core_preserve(old, args, created, modified):
+    """Edit only explicitly supplied core fields; otherwise keep the part bytes."""
+    explicit = any(value is not None for value in (
+        args.author, args.title, args.revision, created, modified))
+    if old is None:
+        if not explicit:
+            return None
+        root = ET.Element(f"{{{CP}}}coreProperties")
+    elif not explicit:
+        return old
+    else:
+        root = ET.fromstring(old)
+    if args.author is not None:
+        get_or_add(root, DC, "creator").text = args.author
+        get_or_add(root, CP, "lastModifiedBy").text = args.author
+    if args.title is not None:
+        get_or_add(root, DC, "title").text = args.title
+    if args.revision is not None:
+        get_or_add(root, CP, "revision").text = str(args.revision)
+    if created is not None:
+        set_core_datetime(root, "created", created)
+    if modified is not None:
+        set_core_datetime(root, "modified", modified)
+    return ET.tostring(root, encoding="UTF-8", xml_declaration=True)
+
+
+def set_app_text(data, tag, value):
+    text = data.decode("utf-8")
+    pattern = re.compile(
+        rf"<(?P<prefix>[A-Za-z_][\w.-]*:)?{tag}\b[^>]*(?:/>|>.*?</(?:\w+:)?{tag}>)", re.S
+    )
+    match = pattern.search(text)
+    if match:
+        prefix = match.group("prefix") or ""
+        replacement = f"<{prefix}{tag}>{html.escape(value)}</{prefix}{tag}>"
+        return pattern.sub(lambda _: replacement, text, count=1).encode("utf-8")
+    root_match = re.search(r"<(?P<prefix>[A-Za-z_][\w.-]*:)?Properties\b", text)
+    prefix = (root_match.group("prefix") or "") if root_match else ""
+    closing = re.compile(rf"</{re.escape(prefix)}Properties\s*>")
+    if not closing.search(text):
+        raise ValueError(f"cannot update docProps/app.xml: missing {tag} and Properties root")
+    replacement = f"<{prefix}{tag}>{html.escape(value)}</{prefix}{tag}>"
+    return closing.sub(lambda m: replacement + m.group(0), text, count=1).encode("utf-8")
+
+
+def minimal_app(edit_minutes, company=None, pages=None):
+    parts = []
+    if company is not None:
+        parts.append(f"<Company>{html.escape(company)}</Company>")
+    if pages is not None:
+        parts.append(f"<Pages>{pages}</Pages>")
+    parts.append(f"<TotalTime>{edit_minutes}</TotalTime>")
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            f'<Properties xmlns="{APP}">' + "".join(parts) + "</Properties>").encode("utf-8")
+
+
+def build_app_clean(old, args, stats, edit_minutes):
     root = ET.fromstring(old) if old else ET.fromstring(APP_TEMPLATE)
     for tag in ("HeadingPairs", "TitlesOfParts"):
         remove_tag(root, APP, tag)
@@ -340,7 +424,7 @@ def build_app(old, args, stats, edit_minutes):
         "Lines": str(stats["lines"]),
         "Paragraphs": str(stats["paragraphs"]),
         "ScaleCrop": "false",
-        "Company": args.company,
+        "Company": args.company or "",
         "Manager": "",
         "HyperlinkBase": "",
         "LinksUpToDate": "false",
@@ -352,6 +436,17 @@ def build_app(old, args, stats, edit_minutes):
     for tag, value in values.items():
         get_or_add(root, APP, tag).text = value
     return ET.tostring(root, encoding="UTF-8", xml_declaration=True)
+
+
+def update_app_preserve(old, args, edit_minutes):
+    if old is None:
+        return minimal_app(edit_minutes, args.company, args.pages)
+    data = set_app_text(old, "TotalTime", str(edit_minutes))
+    if args.company is not None:
+        data = set_app_text(data, "Company", args.company)
+    if args.pages is not None:
+        data = set_app_text(data, "Pages", str(args.pages))
+    return data
 
 
 REL_RE = re.compile(rb"<Relationship\b[^>]*/>")
@@ -481,14 +576,12 @@ def rewrite_package(path, infos, entries, drops, stamp):
         raise
 
 
-def align_timeline(created, modified, minutes):
-    earliest = modified - dt.timedelta(minutes=minutes)
-    if created > earliest:
-        return earliest, True
-    return created, False
+def clamp_total_to_span(minutes, created, modified):
+    span = max(0, int((modified - created).total_seconds() // 60))
+    return min(minutes, span), span
 
 
-def restore_file_times(path, created, modified):
+def restore_file_times(path, created, accessed, modified):
     if os.name != "nt":
         return False
     import ctypes
@@ -505,6 +598,7 @@ def restore_file_times(path, created, modified):
         return FILETIME(ticks & 0xFFFFFFFF, (ticks >> 32) & 0xFFFFFFFF)
 
     created_ft = filetime(created)
+    accessed_ft = filetime(accessed)
     modified_ft = filetime(modified)
 
     k32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -530,17 +624,17 @@ def restore_file_times(path, created, modified):
     try:
         return bool(
             k32.SetFileTime(
-                handle, ctypes.byref(created_ft), ctypes.byref(modified_ft), ctypes.byref(modified_ft)
+                handle, ctypes.byref(created_ft), ctypes.byref(accessed_ft), ctypes.byref(modified_ft)
             )
         )
     finally:
         k32.CloseHandle(handle)
 
 
-def inspect(path, entries, accessed):
+def inspect(path, entries, accessed, mode):
     core = entries.get("docProps/core.xml")
     app = entries.get("docProps/app.xml")
-    _out(f"[docx-meta] {path} ({os.path.getsize(path)} bytes)")
+    _out(f"[docx-meta] {path} ({os.path.getsize(path)} bytes) mode={mode}")
     created, modified = file_times(path)
     _out(
         f"  file times: created={created:%Y-%m-%dT%H:%M:%SZ} "
@@ -598,79 +692,134 @@ def process_document(path, args, state_path, baseline):
     if args.inspect:
         st = os.stat(path)
         infos, entries = load_package(path)
-        inspect(path, entries, dt.datetime.fromtimestamp(st.st_atime, dt.timezone.utc))
+        inspect(path, entries, dt.datetime.fromtimestamp(st.st_atime, dt.timezone.utc),
+                "clean" if args.clean else "preserve")
         _out(f"  state.file={state_path}")
         if baseline:
             _out(f"  state.totalTime={baseline['total_minutes']}min source={baseline['source']} estimated={baseline['estimated']}")
         else:
             _out("  state.totalTime=<missing>")
         return
+
+    st = os.stat(path)
+    original_accessed = dt.datetime.fromtimestamp(st.st_atime, dt.timezone.utc)
+    fs_created, fs_modified = file_times(path)
     infos, entries = load_package(path)
 
     stats = text_stats(entries.get("word/document.xml", b""))
     snapshot = content_snapshot(entries, stats)
-    fs_created, modified = file_times(path)
-    created_override = parse_dt(args.created)
-    modified_override = parse_dt(args.modified)
-    modified = modified_override or modified
     edit_minutes, source, estimated = resolve_minutes(args, entries, stats, snapshot, baseline)
+    explicit_created = parse_dt(args.created)
+    explicit_modified = parse_dt(args.modified)
     if args.pages is not None:
         stats["pages"] = args.pages
-    if args.copy_style:
-        if modified_override is None:
-            floor = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=2)
-            if modified > floor:
-                modified = floor.replace(microsecond=0)
-        if baseline and created_override is None:
-            created, shifted = align_timeline(parse_dt(baseline["created"]), modified, edit_minutes)
-        else:
-            created = created_override or (modified - dt.timedelta(minutes=edit_minutes))
-            shifted = created_override is None
-    else:
-        previous_created = parse_dt(baseline["created"]) if baseline else fs_created
-        created, shifted = align_timeline(created_override or previous_created, modified, edit_minutes)
 
-    entries["docProps/core.xml"] = build_core(entries.get("docProps/core.xml"), args, created, modified)
-    entries["docProps/app.xml"] = build_app(entries.get("docProps/app.xml"), args, stats, edit_minutes)
-    ensure_registration(entries, "docProps/core.xml", CT_CORE, REL_CORE)
-    ensure_registration(entries, "docProps/app.xml", CT_APP, REL_APP)
+    requested_minutes = edit_minutes
+    if args.clean:
+        core = entries.get("docProps/core.xml")
+        core_created = read_core_datetime(core, "created")
+        baseline_created = parse_dt(baseline["created"]) if baseline else None
+        created = (explicit_created or core_created or baseline_created
+                   or fs_created.replace(microsecond=0))
+        modified = explicit_modified or fs_modified
+        edit_minutes, span = clamp_total_to_span(edit_minutes, created, modified)
+        if edit_minutes < requested_minutes:
+            _out(f"  warning: totalTime {requested_minutes}min exceeds timeline span {span}min; "
+                 f"capped to {edit_minutes}min (created time kept)")
 
-    drops = set()
-    removed = []
-    for name, rel_files, rel_fragment, ct_part in DROP_SPECS:
-        if name == "docProps/custom.xml" and args.keep_custom_properties:
-            continue
-        if name == "word/people.xml" and args.keep_people:
-            continue
-        if drop_part(entries, drops, name, rel_files, rel_fragment, ct_part):
-            removed.append(name)
-    if not args.keep_thumbnail:
-        for name in thumbnail_parts(entries):
-            if drop_part(entries, drops, name, ["_rels/.rels"], "/metadata/thumbnail", "/" + name):
+        entries["docProps/core.xml"] = build_core_clean(
+            entries.get("docProps/core.xml"), args, created, modified)
+        entries["docProps/app.xml"] = build_app_clean(
+            entries.get("docProps/app.xml"), args, stats, edit_minutes)
+        ensure_registration(entries, "docProps/core.xml", CT_CORE, REL_CORE)
+        ensure_registration(entries, "docProps/app.xml", CT_APP, REL_APP)
+
+        drops = set()
+        removed = []
+        for name, rel_files, rel_fragment, ct_part in DROP_SPECS:
+            if name == "docProps/custom.xml" and args.keep_custom_properties:
+                continue
+            if name == "word/people.xml" and args.keep_people:
+                continue
+            if drop_part(entries, drops, name, rel_files, rel_fragment, ct_part):
                 removed.append(name)
+        if not args.keep_thumbnail:
+            for name in thumbnail_parts(entries):
+                if drop_part(entries, drops, name, ["_rels/.rels"], "/metadata/thumbnail", "/" + name):
+                    removed.append(name)
 
-    scrubbed = scrub_review_authors(entries, drops, args.author, args.keep_review_authors)
+        scrubbed = scrub_review_authors(entries, drops, args.author, args.keep_review_authors)
+        fs_created_target = explicit_created or fs_created
+        fs_accessed_target = original_accessed
+        fs_modified_target = modified
+    else:
+        core = entries.get("docProps/core.xml")
+        core_created = read_core_datetime(core, "created")
+        core_modified = read_core_datetime(core, "modified")
+        fs_modified_seconds = fs_modified.replace(microsecond=0)
+        created = explicit_created or core_created or fs_created.replace(microsecond=0)
+        modified_update = explicit_modified
+        if explicit_modified is not None:
+            modified = explicit_modified
+        elif core_modified is not None and fs_modified_seconds > core_modified:
+            modified = fs_modified_seconds
+            modified_update = fs_modified_seconds
+        elif core_modified is not None:
+            modified = core_modified
+        else:
+            modified = fs_modified_seconds
+
+        edit_minutes, span = clamp_total_to_span(edit_minutes, created, modified)
+        if edit_minutes < requested_minutes:
+            _out(f"  warning: totalTime {requested_minutes}min exceeds timeline span {span}min; "
+                 f"capped to {edit_minutes}min (created time kept)")
+
+        core = update_core_preserve(core, args, explicit_created, modified_update)
+        if core is not None:
+            entries["docProps/core.xml"] = core
+            ensure_registration(entries, "docProps/core.xml", CT_CORE, REL_CORE)
+        entries["docProps/app.xml"] = update_app_preserve(
+            entries.get("docProps/app.xml"), args, edit_minutes)
+        ensure_registration(entries, "docProps/app.xml", CT_APP, REL_APP)
+        drops, removed, scrubbed = set(), [], 0
+        fs_created_target = explicit_created or fs_created
+        fs_modified_target = explicit_modified or fs_modified
+        fs_accessed_target = explicit_modified or original_accessed
 
     _out(f"[docx-meta] {path}")
+    _out(f"  mode={'clean' if args.clean else 'preserve'}")
     _out(f"  created={created:%Y-%m-%dT%H:%M:%SZ} modified={modified:%Y-%m-%dT%H:%M:%SZ}")
-    if args.copy_style:
-        span = round((modified - created).total_seconds() / 60)
-        if shifted:
-            _out(f"  timeline: copy-style, core span={span}min == totalTime (fs creation stays at write time)")
+    if args.clean:
+        if args.copy_style:
+            _out(f"  timeline: copy-style, core timestamps kept, span={span}min "
+                 f"(fs creation follows rewrite time)")
         else:
-            _out(f"  timeline: copy-style with explicit created, core span={span}min (fs creation stays at write time)")
-    elif shifted:
-        span = round((modified - created).total_seconds() / 60)
-        _out(f"  timeline: created aligned so span={span}min == totalTime")
-    _out(f"  author={args.author or '<removed>'} company={args.company or '<removed>'}")
-    _out(f"  totalTime={edit_minutes}min revision={args.revision} source={source} estimated={estimated}")
+            _out(f"  timeline: core timestamps kept, span={span}min totalTime={edit_minutes}min")
+    else:
+        if explicit_created is not None or explicit_modified is not None:
+            _out(f"  timeline: preserve mode with explicit timestamps, span={span}min")
+        else:
+            _out(f"  timeline: preserved timestamps span={span}min")
+
+    if args.clean:
+        author_text = args.author or "<removed>"
+        company_text = args.company or "<removed>"
+        revision_text = str(args.revision if args.revision is not None else 1)
+    else:
+        author_text = (args.author if args.author else "<empty>") if args.author is not None else "<preserved>"
+        company_text = (args.company if args.company else "<empty>") if args.company is not None else "<preserved>"
+        revision_text = str(args.revision) if args.revision is not None else "<preserved>"
+    _out(f"  author={author_text} company={company_text}")
+    _out(f"  totalTime={edit_minutes}min revision={revision_text} source={source} estimated={estimated}")
     if baseline:
         _out(f"  previousTotal={baseline['total_minutes']}min change={edit_minutes - baseline['total_minutes']:+d}min")
     _out(f"  state.file={state_path}")
+    stats_note = "" if args.clean else " (app.xml stats preserved)"
     _out(
         "  stats: "
         f"pages={stats['pages']} words={stats['words']} chars={stats['chars']} "
         f"paragraphs={stats['paragraphs']} tables={stats['tables']} images={stats['images']}"
+        + stats_note
     )
     _out(f"  dropped parts: {', '.join(removed) if removed else '<none>'}")
     _out(f"  review author fields scrubbed: {scrubbed}")
@@ -696,18 +845,30 @@ def process_document(path, args, state_path, baseline):
             shutil.copy2(path, backup)
             _out(f"  backup: {backup} (keeps original metadata; do not deliver it)")
         rewrite_package(path, infos, entries, drops, zip_stamp(modified.astimezone()))
-        if args.copy_style:
-            os.utime(path, (dt.datetime.now(dt.timezone.utc).timestamp(), modified.timestamp()))
-            written = "copy-style: fs creation follows rewrite time"
-        else:
-            os.utime(path, (modified.timestamp(), modified.timestamp()))
-            times_restored = restore_file_times(path, created, modified)
-            if os.name != "nt":
-                written = "copy-style: fs creation follows rewrite time"
-            elif times_restored:
-                written = "file times restored"
+        if args.clean:
+            if args.copy_style:
+                os.utime(path, (original_accessed.timestamp(), modified.timestamp()))
+                written = "copy-style: core timestamps kept; fs creation follows rewrite time"
             else:
-                written = "birthtime not settable; fs creation follows rewrite time -> copy-style"
+                os.utime(path, (fs_accessed_target.timestamp(), fs_modified_target.timestamp()))
+                times_restored = restore_file_times(
+                    path, fs_created_target, fs_accessed_target, fs_modified_target)
+                if os.name != "nt":
+                    written = "clean: fs mtime/atime restored; birthtime unsupported"
+                elif times_restored:
+                    written = "clean: file times restored"
+                else:
+                    written = "clean: fs mtime/atime restored; birthtime not settable"
+        else:
+            os.utime(path, (fs_accessed_target.timestamp(), fs_modified_target.timestamp()))
+            times_restored = restore_file_times(
+                path, fs_created_target, fs_accessed_target, fs_modified_target)
+            if os.name != "nt":
+                written = "preserve: fs mtime/atime restored; birthtime unsupported"
+            elif times_restored:
+                written = "preserve: file times restored"
+            else:
+                written = "preserve: fs mtime/atime restored; birthtime not settable"
         try:
             os.replace(pending, state_path)
         except OSError as exc:
@@ -720,33 +881,46 @@ def process_document(path, args, state_path, baseline):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Clean .docx metadata/PII and normalize timestamps.")
+    ap = argparse.ArgumentParser(
+        description="Preserve or clean .docx metadata and maintain total editing time.")
     ap.add_argument("paths", nargs="+", help="one or more .docx files")
+    property_mode = ap.add_mutually_exclusive_group()
+    property_mode.add_argument(
+        "--preserve", dest="clean", action="store_false",
+        help="keep existing properties and package parts (default)")
+    property_mode.add_argument(
+        "--clean", dest="clean", action="store_true",
+        help="remove personal metadata, as the previous default")
+    ap.set_defaults(clean=False)
     ap.add_argument("--inspect", action="store_true", help="print current metadata only")
-    ap.add_argument("--author", help="keep/set this author; default removes author fields")
-    ap.add_argument("--company", default="", help="company value; default empty")
-    ap.add_argument("--title", help="document title; default removes it")
-    ap.add_argument("--created", help="ISO datetime; default prior baseline or file creation time")
-    ap.add_argument("--modified", help="ISO datetime; default file modification time")
+    ap.add_argument("--author", help="set author; default keeps it with --preserve, removes it with --clean")
+    ap.add_argument("--company", default=None,
+                    help="company value; default keeps it with --preserve, clears it with --clean")
+    ap.add_argument("--title", help="document title; default keeps it with --preserve, removes it with --clean")
+    ap.add_argument("--created", help="ISO datetime; default keeps the document value with --preserve")
+    ap.add_argument("--modified", help="ISO datetime; default keeps the document value with --preserve")
     ap.add_argument("--mode", choices=("auto", "initial", "update"), default="auto",
                     help="auto initializes or accumulates; initial resets; update requires a baseline")
     duration = ap.add_mutually_exclusive_group()
     duration.add_argument("--edit-minutes", type=int, help="absolute total minutes; replaces the baseline total")
     duration.add_argument("--add-minutes", type=int, help="append a new session's minutes to the saved baseline")
     ap.add_argument("--state-file", help="external JSON baseline; one document only, useful after a rename")
-    ap.add_argument("--pages", type=int, help="actual rendered page count, overriding the estimate")
+    ap.add_argument("--pages", type=int, help="actual rendered page count; updates the Pages property")
     ap.add_argument(
         "--copy-style",
         action="store_true",
-        help="fake a copied file: core keeps closed-loop, fs creation stays at write time (> modified)",
+        help="clean mode only: fake a copied file; fs creation stays at write time (> modified)",
     )
     ap.add_argument("--chars-per-min", type=float, default=45.0, help="CJK chars per minute (default 45)")
     ap.add_argument("--words-per-min", type=float, default=32.0, help="Latin words per minute (default 32)")
-    ap.add_argument("--revision", type=int, default=1)
-    ap.add_argument("--keep-thumbnail", action="store_true")
-    ap.add_argument("--keep-custom-properties", action="store_true")
-    ap.add_argument("--keep-people", action="store_true")
-    ap.add_argument("--keep-review-authors", action="store_true")
+    ap.add_argument("--revision", type=int,
+                    help="revision number; default keeps it with --preserve, sets 1 with --clean")
+    ap.add_argument("--keep-thumbnail", action="store_true", help="clean mode only: keep the thumbnail")
+    ap.add_argument("--keep-custom-properties", action="store_true",
+                    help="clean mode only: keep docProps/custom.xml")
+    ap.add_argument("--keep-people", action="store_true", help="clean mode only: keep word/people.xml")
+    ap.add_argument("--keep-review-authors", action="store_true",
+                    help="clean mode only: keep w:author and w:initials")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--backup", action="store_true")
     args = ap.parse_args()
@@ -756,11 +930,14 @@ def main():
         ap.error("editing minutes must be non-negative")
     if args.pages is not None and args.pages <= 0:
         ap.error("--pages must be a positive integer")
+    if args.revision is not None and args.revision <= 0:
+        ap.error("--revision must be a positive integer")
     if args.state_file and len(args.paths) != 1:
         ap.error("--state-file requires exactly one document")
     if args.mode == "initial" and args.add_minutes is not None:
         ap.error("--add-minutes cannot be combined with --mode initial")
-    args.revision = max(1, args.revision)
+    if args.copy_style and not args.clean:
+        ap.error("--copy-style requires --clean")
 
     failed = False
     for path in args.paths:
