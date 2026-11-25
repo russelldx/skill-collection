@@ -10,9 +10,9 @@ skill 与 hook 的关系是"语义上的一部分、运行时在别处"。以前
   - 2026-10-31 修正：旧版只认中文文件名，而 skill 默认产出的是 `HANDOFF.md`。两套命名对不上，导致标记一直打不上，Stop 检查也会静默放行。现已补上 `HANDOFF.md` / `handoff.md` 与 handoffs 路径线索。
 - `handoff-stop-check.sh` — Stop hook，在主agent回复结束时提醒一次，不等于会话退出，也不等于自动验收：
   - **①** 小节：提醒核对本轮记录，hook本身不验证记录内容。
-  - **②** 归档（主文档整文件字节超过阈值）：先检查角色/授权与任务是否形成闭环。archive默认只预览，获准后才用 --apply 原样搬移；摘要不能代替实际移走主文档中的内容。
+  - **②** 归档（活跃预算 = 当前态块 + §0 超过阈值）：先检查角色/授权与任务是否形成闭环。archive默认只预览，获准后才用 --apply 原样搬移；摘要不能代替实际移走主文档中的内容。
   - **③** 读模型（STATE.json 缺失或早于文档改动）：新版用 refresh 从当前态派生读模型，再用 validate/context 校验来源hash与内容；旧版仍按人工流程处理，不擅自迁移。
-  - 阈值 `HANDOFF_SIZE_LIMIT`（默认 20480），退出码 2 = 阻断，标"确认无需"可跳过（一次性）
+  - 阈值 `HANDOFF_LIVE_LIMIT`（默认 20480，兼容旧名 `HANDOFF_SIZE_LIMIT`）判活跃预算；`HANDOFF_WHOLE_LIMIT`（默认 49152）只对整文件 WARN，不改退出码。hook 调 `handoff.py size` 取数；脚本不可用或目录受角色隔离时回退 `wc -c` 按整文件判，旧文档无当前态块时同样按整文件判。退出码 2 = 阻断，标"确认无需"可跳过（一次性）
 
 ## 部署与升级
 
@@ -26,7 +26,7 @@ python scripts/handoff.py install-hooks
 python scripts/handoff.py install-hooks --target "$HOME/other/hooks"
 ```
 
-修改流程：在用户授权范围内修改本目录源码；只有另行获准全局升级，才运行 install-hooks。未获准时，只保留源码改动，并报告“未部署”。不要直接编辑 `~/.qoder/hooks/` 中的文件，也不要因为 hook 的提示，就自动扩大对持久文件/配置的编辑权限。
+修改流程：在用户授权范围内修改本目录源码；只有另行获准全局升级，才运行 install-hooks。未获准时，只保留源码改动，并报告“未部署”。`~/.qoder/hooks/` 里实际加载的副本不会随本目录自动更新，部署前先备份，避免两份文案再次漂移。不要直接编辑 `~/.qoder/hooks/` 中的文件，也不要因为 hook 的提示，就自动扩大对持久文件/配置的编辑权限。
 
 ## 其他宿主 / 部署目标
 

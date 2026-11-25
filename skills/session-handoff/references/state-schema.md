@@ -63,6 +63,8 @@ python scripts/handoff.py context "<目录>" --query "关键词" --task T1
 
 | 项目 | 默认硬上限 |
 |---|---|
+| 活跃预算（当前态块 + §0） | 20480 UTF-8字节，`HANDOFF_LIVE_LIMIT`（兼容旧名 `HANDOFF_SIZE_LIMIT`）；`index`/`size` 判定，非 token 数 |
+| 整文件兜底 | 49152 UTF-8字节，`HANDOFF_WHOLE_LIMIT`；超出只 WARN，不改退出码 |
 | 整个 context JSON 输出（含标签、路径与元数据） | 12000 UTF-8字节，`--max-bytes` |
 | 可选近期原文 | 6000字节，`--recent-bytes`；最多4轮，`--turns` |
 | 可选检索片段 | 3000字节，`--retrieval-bytes`；最多3条 |
@@ -106,11 +108,12 @@ python scripts/handoff.py validate "<目录>"
 python scripts/handoff.py archive "<目录>" T1
 python scripts/handoff.py archive "<目录>" T1 --apply
 python scripts/handoff.py index "<目录>"
+python scripts/handoff.py size "<目录>"
 python scripts/handoff.py search "<目录>" "关键词" --task T1 -k 3
 python scripts/handoff.py status "<获准根目录>" --max-depth 2 --status in-progress,blocked
 ```
 
-主文档：HANDOFF.md → 根目录唯一中文交接/实施计划文件 → `--doc` 指定。路径必须留在所选目录内，不沿越界链接读取。index 保护手工 INDEX.md，必要时生成 INDEX.generated.md；其20KB计量与Stop一致，都是主文档整文件，不是“除摘要之外的正文”。
+主文档：HANDOFF.md → 根目录唯一中文交接/实施计划文件 → `--doc` 指定。路径必须留在所选目录内，不沿越界链接读取。index 保护手工 INDEX.md，必要时生成 INDEX.generated.md；其活跃预算（当前态+§0）与 Stop 默认一致，都是 20480 字节；整文件 48KiB 只做叙事堆积提醒，不是 token 数。
 
 旧v1文档：validate/index/search/status 继续可用，context/refresh 不擅自迁移。获得该文档编辑授权后，备份原文，按模板抽取当前仍有效目标/限制/验收/状态，增添当前态块；保留事件正文与稳定节号。人工核对不存在信息丢失后 refresh → validate → context。不要使用 init --force 覆盖既有交接。
 
@@ -127,7 +130,10 @@ refresh/archive 使用协作式独占锁、预期字节复核与原子替换；�
   login/STATE.json           该功能派生状态
   login/archive/             该功能历史
   export/HANDOFF.md          导出功能，具有自己的 STATE/archive/备份/锁
+  2026-11-25--import/HANDOFF.md  用户要求按日期命名的导入功能（同一功能沿用此目录）
 ```
+
+用户明确要求按日期命名子目录时，用 `<YYYY-MM-DD>--<功能名>`，日期固定为首次创建日；同一功能以后沿用该目录，不按新日期另建。主文档仍是该目录唯一的 HANDOFF.md（或唯一中文交接文档），当前态 `session`/`title` 写明功能身份，用 `status` 的 TITLE/DIRECTORY 找回，不另建映射文件或全局注册表。
 
 ```bash
 python scripts/handoff.py status ".handoff" --max-depth 1

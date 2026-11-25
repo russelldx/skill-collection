@@ -188,10 +188,50 @@ def state_template():
     }
 
 CURRENT_BLOCK = re.compile(r'^```handoff-state[^\S\r\n]*\r?\n(.*?)^```[^\S\r\n]*\r?$', re.M | re.S)
+DEFAULT_LIVE_LIMIT = 20480
+DEFAULT_WHOLE_LIMIT = 49152
 TASK_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z')
 CONTRACT_FIELDS = ('goal', 'constraints', 'acceptance', 'keyDecisions')
 CURRENT_FIELDS = ('phase', 'status', 'updatedAt', 'openBlockers', 'nextActions',
                   'fileOwnership', 'artifacts', 'tasks')
+
+
+def env_limit(name, default):
+    value = os.environ.get(name)
+    return int(value) if value else default
+
+
+def live_limit():
+    # HANDOFF_SIZE_LIMIT 是旧名兼容别名；存在即按新的活跃预算口径生效
+    return env_limit('HANDOFF_LIVE_LIMIT', env_limit('HANDOFF_SIZE_LIMIT', DEFAULT_LIVE_LIMIT))
+
+
+def whole_limit():
+    return env_limit('HANDOFF_WHOLE_LIMIT', DEFAULT_WHOLE_LIMIT)
+
+
+def measure_sizes(main_path):
+    """活跃预算 = 当前态围栏块（含围栏）+ §0 节；无当前态块时退回整文件。"""
+    whole = os.path.getsize(main_path)
+    text = read_text(main_path)
+    block = CURRENT_BLOCK.search(text)
+    if not block:
+        return {'mode': 'legacy', 'liveBytes': whole, 'wholeBytes': whole}
+    live = len(block.group(0).encode('utf-8'))
+    for section in sections_from_text(main_path, text):
+        if section['secno'] == 0:
+            live += len(text[section['offset']:section['stop']].encode('utf-8'))
+    return {'mode': 'v2', 'liveBytes': live, 'wholeBytes': whole}
+
+
+def size_packet(sizes):
+    live_lim, whole_lim = live_limit(), whole_limit()
+    return {
+        'mode': sizes['mode'], 'liveBytes': sizes['liveBytes'], 'wholeBytes': sizes['wholeBytes'],
+        'liveLimit': live_lim, 'wholeLimit': whole_lim,
+        'liveOver': sizes['liveBytes'] > live_lim, 'wholeOver': sizes['wholeBytes'] > whole_lim,
+        'contextHint': '用 context --max-bytes %d 起步' % (sizes['liveBytes'] + 1200),
+    }
 
 
 def scoped_path(root, path):
@@ -383,6 +423,24 @@ def cmd_refresh(a):
     return 0
 
 
+def cmd_size(a):
+    """只读测量；供 index 与 hook 共用同一套口径，永不返回 2。"""
+    try:
+        root = os.path.abspath(a.dir)
+        main, cands = resolve_main_doc(root, a.doc)
+        error = doc_error(root, a.doc, cands)
+        if error or not main:
+            raise ValueError(error or '未找到主交接文档')
+        main = scoped_path(root, main)
+        isolation_guard(main.resolve().parent, a.role)
+        packet = size_packet(measure_sizes(main))
+    except (ValueError, OSError) as e:
+        print('ERR ' + str(e), file=sys.stderr)
+        return 1
+    print(json.dumps(packet, ensure_ascii=False))
+    return 0
+
+
 def archive_ready(task):
     return (task.get('status') == 'done' and task.get('verified') is True
             and not task.get('openItems')
@@ -533,7 +591,8 @@ def cmd_context(a):
     if a.recent:
         packet['recentSource'] = 'RECENT.jsonl（规范化可见原文；省略不代表原文丢失）'
     if len(json_text(packet).encode('utf-8')) > a.max_bytes:
-        raise ValueError('required context exceeds budget；关键约束不截断，请缩小当前任务或显式提高预算')
+        raise ValueError('required context exceeds budget；required=%dB budget=%dB，关键约束不截断，请缩小当前任务或显式提高预算'
+                         % (len(json_text(packet).encode('utf-8')), a.max_bytes))
     if a.recent:
         records = recent_turns(a.dir)
         if a.after_id:
@@ -564,7 +623,8 @@ def cmd_context(a):
                 break
     output = json_text(packet)
     if len(output.encode('utf-8')) > a.max_bytes:
-        raise ValueError('context metadata exceeds budget；未输出不完整上下文')
+        raise ValueError('context metadata exceeds budget；required=%dB budget=%dB，未输出不完整上下文'
+                         % (len(output.encode('utf-8')), a.max_bytes))
     print(output, end='')
     return 0
 
@@ -714,6 +774,12 @@ def cmd_index(a):
     docs = all_docs(root, a.doc, a.role)
     active = [d for d in docs if d['bucket'] == 'active']
     total_active = os.path.getsize(main) if main else 0
+    sizes = measure_sizes(main) if main else {'mode': 'legacy', 'liveBytes': 0, 'wholeBytes': 0}
+    live_bytes, whole_bytes = sizes['liveBytes'], sizes['wholeBytes']
+    live_lim = a.max_bytes if a.max_bytes is not None else live_limit()
+    whole_lim = whole_limit()
+    live_over = live_bytes > live_lim
+    whole_over = whole_bytes > whole_lim
     src = os.path.basename(main) if main else 'archive/'
     lines = [GENERATED_INDEX_HEAD, '',
              '> 由 `handoff.py index` 重建（源：%s）。节号稳定，archive 按 `grep -n "^## N、"` 点查，禁止整篇读入。' % src, '']
@@ -732,19 +798,23 @@ def cmd_index(a):
     for t in sorted(tmap):
         refs = ['§%s' % (s if s is not None else '-') for s, f, ln in tmap[t]]
         lines.append('- **%s** → %s' % (t, '、'.join(refs)))
-    # 折叠提示
-    hint = ''
-    if a.max_bytes and total_active > a.max_bytes:
+    # 折叠提示：活跃预算判归档；整文件只做叙事堆积兜底
+    parts = []
+    if live_over:
         eligible = set()
         if main and CURRENT_BLOCK.search(read_text(main)):
             state = current_source(main, read_text(main))
             eligible = {t['id'] for t in state['tasks'] if archive_ready(t)}
         closed = [d for d in active if d['secno'] not in (None, 0) and d['task'] in eligible]
         closed.sort(key=lambda x: x['secno'])
-        hint = ('\n\n## 待归档\n主文档 %dB > 阈值 %dB（整文件字节，非 token 数）。'
-                '先检查任务闭环，再用 archive <任务ID> 预览；摘要不减少正文体积。\n'
-                % (total_active, a.max_bytes)) + '\n'.join(
-                '- §%s %s（%dB，task=%s）' % (c['secno'], c['title'][:30], c['size'], c['task']) for c in closed[:8])
+        parts.append('## 待归档\n主文档当前态 %dB > 活跃预算 %dB（只量当前态+§0；整文件 %dB，非 token 数）。'
+                     '先检查任务闭环，再用 archive <任务ID> 预览；摘要不减少正文体积。\n%s'
+                     % (live_bytes, live_lim, whole_bytes, '\n'.join(
+                         '- §%s %s（%dB，task=%s）' % (c['secno'], c['title'][:30], c['size'], c['task'])
+                         for c in closed[:8])))
+    if whole_over:
+        parts.append('WARN 叙事节堆积：整文件 %dB > %dB，建议把已闭环小节归档' % (whole_bytes, whole_lim))
+    hint = ('\n\n' + '\n\n'.join(parts)) if parts else ''
     lines.append(hint)
     out = a.out or 'INDEX.md'
     ip = out if os.path.isabs(out) else os.path.join(root, out)
@@ -759,9 +829,9 @@ def cmd_index(a):
         print('NOTE 目标 INDEX.md 为手工维护，改写 %s（--out/--force 可指定）' % fallback)
         ip = fallback
     write_text(ip, '\n'.join(lines) + '\n')
-    print('wrote', ip, '(活跃区 %dB)' % total_active)
+    print('wrote', ip, '(整文件 %dB)' % total_active)
     if hint: print(hint.strip())
-    return 1 if (a.max_bytes and total_active > a.max_bytes) else 0
+    return 1 if live_over else 0
 
 # ---------- search ----------
 def match_window(text, query, n=240):
@@ -1085,7 +1155,9 @@ def main():
     sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('init'); p.add_argument('dir'); p.add_argument('--doc', help='主文档名，默认 HANDOFF.md'); p.add_argument('--title'); p.add_argument('--phase'); p.add_argument('--force', action='store_true'); p.set_defaults(func=cmd_init)
     p = sub.add_parser('validate'); p.add_argument('dir'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--fix-hint', action='store_true'); p.set_defaults(func=cmd_validate)
-    p = sub.add_parser('index'); p.add_argument('root'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--out', help='输出文件名/路径，默认 INDEX.md'); p.add_argument('--max-bytes', type=int, default=20480); p.add_argument('--force', action='store_true', help='允许覆盖非自动生成的索引'); p.set_defaults(func=cmd_index)
+    p = sub.add_parser('index'); p.add_argument('root'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.add_argument('--out', help='输出文件名/路径，默认 INDEX.md'); p.add_argument('--max-bytes', type=int, default=None, help='覆盖活跃预算（默认 HANDOFF_LIVE_LIMIT 或 20480）'); p.add_argument('--force', action='store_true', help='允许覆盖非自动生成的索引'); p.set_defaults(func=cmd_index)
+    p = sub.add_parser('size', help='只读输出活跃预算/整文件字节（hook 与 index 的单一事实源）')
+    p.add_argument('dir'); p.add_argument('--doc', help='主文档名/路径；默认自动识别'); p.set_defaults(func=cmd_size)
     p = sub.add_parser('search'); p.add_argument('dir'); p.add_argument('query'); p.add_argument('-k', type=int, default=3); p.add_argument('--doc', help='主文档名/路径；默认自动识别')
     p.add_argument('--task'); p.add_argument('--max-bytes', type=int, default=3000); p.set_defaults(func=cmd_search)
     p = sub.add_parser('refresh', help='从 Markdown 当前态派生 STATE.json 和 §0（写文件）')
@@ -1140,7 +1212,7 @@ def main():
     if getattr(a, 'after_id', None) and not a.recent:
         ap.error('--after-id 必须与 --recent 同用')
     try:
-        if a.cmd != 'install-hooks' and a.cmd not in coord_cmds:
+        if a.cmd not in ('install-hooks', 'size') and a.cmd not in coord_cmds:
             isolation_guard(getattr(a, 'dir', getattr(a, 'root', '.')), getattr(a, 'role', None))
         code = a.func(a) or 0
     except (ValueError, OSError) as e:

@@ -1,11 +1,12 @@
 #!/bin/bash
 # session-handoff hook 2/3：Stop 时一次性拦截检查
 #   检查①：本会话改过交接文档 → 是否已追加本次请求/批次的小节
-#   检查②：本会话改过的活跃交接文档字节数是否超归档阈值（防文档无限膨胀）
+#   检查②：本会话改过的活跃交接文档活跃预算（当前态+§0）是否超归档阈值；整文件 48KiB 只兜底提醒
 #   检查③：追加小节后旁侧 STATE.json 是否更新；内容/来源校验交 validate/context
 # 标记文件内容 = 本会话命中的文档绝对路径（正斜杠，一行一个），由 handoff-stamp.sh 写入
 # 一次性：触发后消费标记并落 gate，不再重复拦截
-LIMIT=${HANDOFF_SIZE_LIMIT:-20480}
+LIVE=${HANDOFF_LIVE_LIMIT:-${HANDOFF_SIZE_LIMIT:-20480}}
+WHOLE=${HANDOFF_WHOLE_LIMIT:-49152}
 INPUT=$(cat)
 ls "$HOME/.qoder/tmp/handoff_updated_"* >/dev/null 2>&1 || exit 0
 
@@ -28,17 +29,41 @@ OVER=""
 STATE_BAD=""
 OVER_DIRS=""
 STATE_BAD_DIRS=""
+PILE=""
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   case "$f" in */archive/*) continue ;; esac
   [ -f "$f" ] || continue
-  SZ=$(wc -c <"$f" 2>/dev/null)
-  [ -n "$SZ" ] || continue
-  if [ "$SZ" -gt "$LIMIT" ]; then
+  LIVE_SZ=""
+  WHOLE_SZ=""
+  MODE=""
+  if [ -n "$HANDOFF_PY" ]; then
+    SIZE_JSON=$(python "$HANDOFF_PY" size "$(dirname "$f")" --doc "$(basename "$f")" 2>/dev/null)
+    if [ -n "$SIZE_JSON" ]; then
+      SIZES=$(printf '%s' "$SIZE_JSON" | python -c 'import json,sys;d=json.load(sys.stdin);print(d["liveBytes"],d["wholeBytes"],d["mode"])' 2>/dev/null)
+      read -r LIVE_SZ WHOLE_SZ MODE <<< "$SIZES"
+    fi
+  fi
+  if [ -z "$LIVE_SZ" ] || [ -z "$WHOLE_SZ" ]; then
+    LIVE_SZ=$(wc -c <"$f" 2>/dev/null)
+    WHOLE_SZ=$LIVE_SZ
+    MODE="fallback"
+  fi
+  [ -n "$LIVE_SZ" ] || continue
+  case "$MODE" in
+    legacy) NOTE="（旧文档无当前态块，按整文件判）" ;;
+    fallback) NOTE="（未取到当前态，按整文件判）" ;;
+    *) NOTE="" ;;
+  esac
+  if [ "$LIVE_SZ" -gt "$LIVE" ]; then
     OVER="$OVER
-  - ${f}  →  $((SZ / 1024)) KB（阈值 $((LIMIT / 1024)) KB）"
+  - ${f}  →  当前态 ${LIVE_SZ}B / 整文件 ${WHOLE_SZ}B（活跃预算 ${LIVE}B）${NOTE}"
     OVER_DIRS="$OVER_DIRS$(dirname "$f")
 "
+  fi
+  if [ "$WHOLE_SZ" -gt "$WHOLE" ]; then
+    PILE="$PILE
+  - ${f}  →  整文件 ${WHOLE_SZ}B（兜底 ${WHOLE}B）${NOTE}"
   fi
   # STATE.json 读模型：与文档同目录；缺失或比文档旧（文档改了没同步刷新）都要提醒
   DIR=$(dirname "$f")
@@ -67,7 +92,7 @@ touch "$HOME/.qoder/tmp/handoff_gate_$SID"
   if [ -n "$OVER" ]; then
     echo
     echo "② 折叠/归档（强制，非建议）：以下活跃交接文档已超阈值 —— $OVER"
-    echo "   先检查授权与角色隔离，再跑 index；20KB 是主文档整文件字节，不是 token 数。"
+    echo "   先检查授权与角色隔离，再跑 index；20480 是活跃预算（当前态+§0），整文件只在超 48KiB 时提醒归档叙事节。"
     echo "   新版文档核验任务 done/verified/archiveReady/evidence/openItems 后，用 archive <目录> <任务ID> 只读预览。"
     echo "   已获移动授权才加 --apply：备份、校验、原样搬 archive/<任务ID>.md，保留节号与指针，再 validate/index。"
     echo "   只加摘要却保留正文不会降低体积；没有可归档任务或用户正在编辑时，报告并停止，不删未决或限制。"
@@ -77,6 +102,11 @@ touch "$HOME/.qoder/tmp/handoff_gate_$SID"
       [ -z "$d" ] && continue
       echo "     $HPY index \"$d\""
     done
+  fi
+  if [ -n "$PILE" ]; then
+    echo
+    echo "②-WARN 叙事节堆积（只提醒，不代表必须立即归档）：以下文档整文件超兜底线 —— $PILE"
+    echo "   建议把已闭环小节归档；没有可归档任务时报告原因，不删除未决或限制来压线。"
   fi
   if [ -n "$STATE_BAD" ]; then
     echo

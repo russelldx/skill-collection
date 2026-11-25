@@ -130,11 +130,41 @@ class HandoffTests(unittest.TestCase):
         self.run_cli('search', '复核', '--doc', 'HANDOFF.md', ok=0)
 
     def test_index_does_not_call_unfinished_section_closed(self):
-        p = self.run_cli('index', '--max-bytes', 1)
-        self.assertNotEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.body = '## 1、2026-11-17 会话：未完成\n\n' + '叙述性正文 ' * 2000 + '尚未完成；需要复核。\n'
+        self.write_doc()
+        whole = (self.root / 'HANDOFF.md').stat().st_size
+        self.assertGreater(whole, 20480)
+        p = self.run_cli('index', ok=0)
         index = (self.root / 'INDEX.md').read_text(encoding='utf-8')
         self.assertNotIn('- §1 ', index)
-        self.assertIn(str((self.root / 'HANDOFF.md').stat().st_size) + 'B', index)
+        self.assertIn(str(whole) + 'B', p.stdout)
+
+    def test_index_returns_1_when_current_state_exceeds_live_budget(self):
+        self.state['constraints'] = ['x' * 21000]
+        self.write_doc()
+        p = self.run_cli('index')
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('当前态', p.stdout)
+        self.assertIn('活跃预算 20480', p.stdout)
+
+    def test_index_warns_but_does_not_fail_when_whole_file_piles_up(self):
+        self.body = '## 1、2026-11-17 会话：叙事\n\n' + 'x' * 52000 + '\n'
+        self.write_doc()
+        p = self.run_cli('index', ok=0)
+        self.assertIn('WARN 叙事节堆积', p.stdout)
+        self.assertIn('49152', p.stdout)
+
+    def test_size_legacy_documents_use_whole_file_and_stay_read_only(self):
+        (self.root / 'HANDOFF.md').write_text('## 1、2026-11-17\n遗留文档\n', encoding='utf-8')
+        before = self.snapshot()
+        p = self.run_cli('size', ok=0)
+        data = json.loads(p.stdout)
+        size = len(before['HANDOFF.md'])
+        self.assertEqual(data['mode'], 'legacy')
+        self.assertEqual(data['liveBytes'], size)
+        self.assertEqual(data['wholeBytes'], size)
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(self.run_cli('index', '--max-bytes', 1).returncode, 1)
 
     def test_fenced_h2_is_not_a_real_section(self):
         self.task()
@@ -466,6 +496,8 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertEqual(p.stdout, '')
         self.assertIn('budget', p.stderr)
+        self.assertIn('required=', p.stderr)
+        self.assertIn('budget=12000', p.stderr)
         self.run_cli('context', '--max-bytes', 24000, ok=0)
 
     def test_default_optional_budgets_bound_recent_and_search(self):
